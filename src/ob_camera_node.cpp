@@ -29,7 +29,7 @@ OBCameraNode::OBCameraNode(ros::NodeHandle& nh, ros::NodeHandle& nh_private,
       nh_private_(nh_private),
       device_(std::move(device)),
       device_info_(device_->getDeviceInfo()) {
-  stream_name_[COLOR] = "color";
+  stream_name_[COLOR] = "rgb";
   stream_name_[DEPTH] = "depth";
   stream_name_[INFRA0] = "ir";
   stream_name_[INFRA1] = "ir2";
