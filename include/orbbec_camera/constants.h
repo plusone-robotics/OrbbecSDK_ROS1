@@ -70,14 +70,14 @@ const std::string DEFAULT_ODOM_FRAME_ID = "odom_frame";
 const std::string DEFAULT_DEPTH_FRAME_ID = "camera_depth_frame";
 const std::string DEFAULT_INFRA1_FRAME_ID = "camera_infra1_frame";
 const std::string DEFAULT_INFRA2_FRAME_ID = "camera_infra2_frame";
-const std::string DEFAULT_COLOR_FRAME_ID = "camera_color_frame";
+const std::string DEFAULT_COLOR_FRAME_ID = "camera_rgb_frame";
 const std::string DEFAULT_FISHEYE_FRAME_ID = "camera_fisheye_frame";
 const std::string DEFAULT_IMU_FRAME_ID = "camera_imu_frame";
 
 const std::string DEFAULT_DEPTH_OPTICAL_FRAME_ID = "camera_depth_optical_frame";
 const std::string DEFAULT_INFRA1_OPTICAL_FRAME_ID = "camera_infra1_optical_frame";
 const std::string DEFAULT_INFRA2_OPTICAL_FRAME_ID = "camera_infra2_optical_frame";
-const std::string DEFAULT_COLOR_OPTICAL_FRAME_ID = "camera_color_optical_frame";
+const std::string DEFAULT_COLOR_OPTICAL_FRAME_ID = "camera_rgb_optical_frame";
 const std::string DEFAULT_FISHEYE_OPTICAL_FRAME_ID = "camera_fisheye_optical_frame";
 const std::string DEFAULT_ACCEL_OPTICAL_FRAME_ID = "camera_accel_optical_frame";
 const std::string DEFAULT_GYRO_OPTICAL_FRAME_ID = "camera_gyro_optical_frame";
