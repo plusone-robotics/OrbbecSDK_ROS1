@@ -128,6 +128,8 @@ class OBCameraNode {
 
   std::shared_ptr<ob::Frame> processDepthFrameFilter(std::shared_ptr<ob::Frame> &frame);
 
+  uint64_t getFrameTimestampUs(const std::shared_ptr<ob::Frame> &frame);
+
   void onNewColorFrameCallback();
 
   void publishPointCloud(const std::shared_ptr<ob::FrameSet> &frame_set);
@@ -421,8 +423,6 @@ class OBCameraNode {
   bool enable_depth_scale_ = true;
   int ir_exposure_ = -1;
   bool enable_ir_long_exposure_ = false;
-  int soft_filter_max_diff_ = -1;
-  int soft_filter_speckle_size_ = -1;
   std::string depth_filter_config_;
   bool enable_depth_filter_ = false;
 
@@ -465,7 +465,6 @@ class OBCameraNode {
   std::shared_ptr<std::thread> colorFrameThread_ = nullptr;
   std::mutex colorFrameMtx_;
   std::condition_variable colorFrameCV_;
-  bool use_hardware_time_ = false;
   // ordered point cloud
   bool ordered_pc_ = false;
   std::string device_preset_ = "Default";
@@ -523,6 +522,7 @@ class OBCameraNode {
   bool has_first_color_frame_ = false;
   // rotation degree
   std::map<stream_index_pair, int> image_rotation_;
+  std::string time_domain_ = "device";
 };
 
 }  // namespace orbbec_camera

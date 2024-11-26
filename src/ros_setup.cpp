@@ -76,7 +76,7 @@ void OBCameraNode::selectBaseStream() {
 void OBCameraNode::setupRecommendedPostFilters() {
   // set depth sensor to filter
   auto depth_sensor = device_->getSensor(OB_SENSOR_DEPTH);
-  auto filter_list_ = depth_sensor->createRecommendedFilters();
+  filter_list_ = depth_sensor->createRecommendedFilters();
   for (size_t i = 0; i < filter_list_.size(); i++) {
     auto filter = filter_list_[i];
     std::map<std::string, bool> filter_params = {
@@ -221,21 +221,35 @@ void OBCameraNode::setupDevices() {
                                retry_on_usb3_detection_failure_);
     }
     if (device_->isPropertySupported(OB_PROP_DEPTH_MAX_DIFF_INT, OB_PERMISSION_WRITE)) {
-      auto default_soft_filter_max_diff = device_->getIntProperty(OB_PROP_DEPTH_MAX_DIFF_INT);
-      ROS_INFO_STREAM("default_soft_filter_max_diff: " << default_soft_filter_max_diff);
-      if (soft_filter_max_diff_ != -1 && default_soft_filter_max_diff != soft_filter_max_diff_) {
-        device_->setIntProperty(OB_PROP_DEPTH_MAX_DIFF_INT, soft_filter_max_diff_);
-        auto new_soft_filter_max_diff = device_->getIntProperty(OB_PROP_DEPTH_MAX_DIFF_INT);
-        ROS_INFO_STREAM("after set soft_filter_max_diff: " << new_soft_filter_max_diff);
+      auto default_noise_removal_filter_min_diff =
+          device_->getIntProperty(OB_PROP_DEPTH_MAX_DIFF_INT);
+      ROS_INFO_STREAM(
+          "default_noise_removal_filter_min_diff: " << default_noise_removal_filter_min_diff);
+      if (noise_removal_filter_min_diff_ != -1 &&
+          default_noise_removal_filter_min_diff != noise_removal_filter_min_diff_) {
+        device_->setIntProperty(OB_PROP_DEPTH_MAX_DIFF_INT, noise_removal_filter_min_diff_);
+        auto new_noise_removal_filter_min_diff =
+            device_->getIntProperty(OB_PROP_DEPTH_MAX_DIFF_INT);
+        ROS_INFO_STREAM(
+            "after set noise_removal_filter_min_diff: " << new_noise_removal_filter_min_diff);
       }
     }
-    if (!depth_filter_config_.empty() && enable_depth_filter_) {
-      ROS_INFO_STREAM("Load depth filter config: " << depth_filter_config_);
-      device_->loadDepthFilterConfig(depth_filter_config_.c_str());
-    } else {
-      if (device_->isPropertySupported(OB_PROP_DEPTH_SOFT_FILTER_BOOL, OB_PERMISSION_READ_WRITE)) {
-        device_->setBoolProperty(OB_PROP_DEPTH_SOFT_FILTER_BOOL, enable_soft_filter_);
+    if (device_->isPropertySupported(OB_PROP_DEPTH_MAX_SPECKLE_SIZE_INT, OB_PERMISSION_WRITE)) {
+      auto default_noise_removal_filter_max_size =
+          device_->getIntProperty(OB_PROP_DEPTH_MAX_SPECKLE_SIZE_INT);
+      ROS_INFO_STREAM(
+          "default_noise_removal_filter_max_size: " << default_noise_removal_filter_max_size);
+      if (noise_removal_filter_max_size_ != -1 &&
+          default_noise_removal_filter_max_size != noise_removal_filter_max_size_) {
+        device_->setIntProperty(OB_PROP_DEPTH_MAX_SPECKLE_SIZE_INT, noise_removal_filter_max_size_);
+        auto new_noise_removal_filter_max_size =
+            device_->getIntProperty(OB_PROP_DEPTH_MAX_SPECKLE_SIZE_INT);
+        ROS_INFO_STREAM(
+            "after set noise_removal_filter_max_size: " << new_noise_removal_filter_max_size);
       }
+    }
+    if (device_->isPropertySupported(OB_PROP_DEPTH_SOFT_FILTER_BOOL, OB_PERMISSION_READ_WRITE)) {
+      device_->setBoolProperty(OB_PROP_DEPTH_SOFT_FILTER_BOOL, enable_noise_removal_filter_);
     }
     if (!depth_work_mode_.empty()) {
       ROS_INFO_STREAM("Set depth work mode: " << depth_work_mode_);
@@ -256,18 +270,6 @@ void OBCameraNode::setupDevices() {
     if (device_->isPropertySupported(OB_PROP_LDP_BOOL, OB_PERMISSION_READ_WRITE)) {
       ROS_INFO_STREAM("Setting LDP to " << (enable_ldp_ ? "true" : "false"));
       device_->setBoolProperty(OB_PROP_LDP_BOOL, enable_ldp_);
-    }
-    if (device_->isPropertySupported(OB_PROP_DEPTH_MAX_SPECKLE_SIZE_INT, OB_PERMISSION_WRITE)) {
-      auto default_soft_filter_speckle_size =
-          device_->getIntProperty(OB_PROP_DEPTH_MAX_SPECKLE_SIZE_INT);
-      if (soft_filter_speckle_size_ != -1 &&
-          default_soft_filter_speckle_size != soft_filter_speckle_size_) {
-        ROS_INFO_STREAM("default_soft_filter_speckle_size: " << default_soft_filter_speckle_size);
-        device_->setIntProperty(OB_PROP_DEPTH_MAX_SPECKLE_SIZE_INT, soft_filter_speckle_size_);
-        auto new_soft_filter_speckle_size =
-            device_->getIntProperty(OB_PROP_DEPTH_MAX_SPECKLE_SIZE_INT);
-        ROS_INFO_STREAM("after set soft_filter_speckle_size: " << new_soft_filter_speckle_size);
-      }
     }
     if (device_->isPropertySupported(OB_PROP_HEARTBEAT_BOOL, OB_PERMISSION_READ_WRITE)) {
       ROS_INFO_STREAM("Setting heartbeat to " << (enable_heartbeat_ ? "true" : "false"));
@@ -487,17 +489,14 @@ void OBCameraNode::setupProfiles() {
       height_[stream_index] = height;
       fps_[stream_index] = fps;
       if (selected_profile->format() == OB_FORMAT_BGRA) {
-        images_[stream_index] =
-            cv::Mat(height, width, CV_8UC4, cv::Scalar(0, 0, 0, 0));
+        images_[stream_index] = cv::Mat(height, width, CV_8UC4, cv::Scalar(0, 0, 0, 0));
         encoding_[COLOR] = sensor_msgs::image_encodings::BGRA8;
-        unit_step_size_[stream_index]=4;
-      }else if(selected_profile->format() == OB_FORMAT_RGBA){
-        images_[stream_index] =
-            cv::Mat(height, width, CV_8UC4, cv::Scalar(0, 0, 0, 0));
+        unit_step_size_[stream_index] = 4;
+      } else if (selected_profile->format() == OB_FORMAT_RGBA) {
+        images_[stream_index] = cv::Mat(height, width, CV_8UC4, cv::Scalar(0, 0, 0, 0));
         encoding_[COLOR] = sensor_msgs::image_encodings::RGBA8;
-        unit_step_size_[stream_index]=4;
-      }
-      else {
+        unit_step_size_[stream_index] = 4;
+      } else {
         images_[stream_index] =
             cv::Mat(height, width, image_format_[stream_index], cv::Scalar(0, 0, 0));
       }
