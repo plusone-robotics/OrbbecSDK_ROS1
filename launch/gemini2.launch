@@ -9,11 +9,11 @@
     <arg name="tf_publish_rate" default="10.0"/>
     <arg name="enable_frame_sync" default="true"/>
     <arg name="time_domain" default="device"/><!-- "device", "global", "system" -->
+    <arg name="uvc_backend" default="libuvc"/><!-- "libuvc" or "v4l2" -->
     <!-- The default value of device_preset is `Default`. Only the G330 series is supported. For more information, refer to -->
     <!-- https://www.orbbec.com/docs/g330-use-depth-presets/ -->
     <arg name="device_preset" default="Default"/>
     <arg name="diagnostics_frequency" default="1.0"/>
-    <arg name="laser_on_off_mode" default="0"/>
     <arg name="sync_mode" default="standalone"/>
     <arg name="enable_hardware_d2d" default="true"/>
 
@@ -24,6 +24,10 @@
     <arg name="color_fps" default="0"/>
     <arg name="enable_color" default="true"/>
     <arg name="color_format" default="ANY"/>
+    <arg name="color_ae_roi_left" default="-1"/>
+    <arg name="color_ae_roi_right" default="-1"/>
+    <arg name="color_ae_roi_top" default="-1"/>
+    <arg name="color_ae_roi_bottom" default="-1"/>
     <!-- color rotation degree : 0, 90, 180, 270 -->
     <arg name="color_rotation" default="0"/>
     <arg name="enable_color_auto_exposure" default="true"/>
@@ -36,6 +40,10 @@
     <arg name="depth_fps" default="0"/>
     <arg name="enable_depth" default="true"/>
     <arg name="depth_format" default="ANY"/>
+    <arg name="depth_ae_roi_left" default="-1"/>
+    <arg name="depth_ae_roi_right" default="-1"/>
+    <arg name="depth_ae_roi_top" default="-1"/>
+    <arg name="depth_ae_roi_bottom" default="-1"/>
     <arg name="depth_registration" default="false"/>
     <!-- depth rotation degree : 0, 90, 180, 270 -->
     <arg name="depth_rotation" default="0"/>
@@ -80,7 +88,7 @@
     <arg name="spatial_filter_diff_threshold" default="-1"/>
     <arg name="spatial_filter_magnitude" default="-1"/>
     <arg name="spatial_filter_radius" default="-1"/>
-    <arg name="temporal_filter_diff_threshold" default="-1.-"/>
+    <arg name="temporal_filter_diff_threshold" default="-1.0"/>
     <arg name="temporal_filter_weight" default="-1.0"/>
     <arg name="hole_filling_filter_mode" default=""/>
     <arg name="hdr_merge_exposure_1" default="-1"/>
@@ -119,10 +127,10 @@
             <param name="tf_publish_rate" value="$(arg tf_publish_rate)"/>
             <param name="enable_frame_sync" value="$(arg enable_frame_sync)"/>
             <param name="time_domain" value="$(arg time_domain)"/>
+            <param name="uvc_backend" value="$(arg uvc_backend)"/>
             <param name="device_preset" value="$(arg device_preset)"/>
             <param name="diagnostics_frequency" value="$(arg diagnostics_frequency)"/>
             <param name="align_mode" value="$(arg align_mode)"/>
-            <param name="laser_on_off_mode" value="$(arg laser_on_off_mode)"/>
             <param name="sync_mode" value="$(arg sync_mode)"/>
             <param name="enable_hardware_d2d" value="$(arg enable_hardware_d2d)"/>
             <param name="ir_exposure" value="$(arg ir_exposure)"/>
@@ -133,6 +141,10 @@
             <param name="color_fps" value="$(arg color_fps)"/>
             <param name="enable_color" value="$(arg enable_color)"/>
             <param name="color_format" value="$(arg color_format)"/>
+            <param name="color_ae_roi_left" value="$(arg color_ae_roi_left)"/>
+            <param name="color_ae_roi_right" value="$(arg color_ae_roi_right)"/>
+            <param name="color_ae_roi_top" value="$(arg color_ae_roi_top)"/>
+            <param name="color_ae_roi_bottom" value="$(arg color_ae_roi_bottom)"/>
             <param name="enable_color_auto_exposure" value="$(arg enable_color_auto_exposure)"/>
             <param name="color_exposure" value="$(arg color_exposure)"/>
             <param name="color_rotation" value="$(arg color_rotation)"/>
@@ -142,6 +154,10 @@
             <param name="depth_fps" value="$(arg depth_fps)"/>
             <param name="enable_depth" value="$(arg enable_depth)"/>
             <param name="depth_format" value="$(arg depth_format)"/>
+            <param name="depth_ae_roi_left" value="$(arg depth_ae_roi_left)"/>
+            <param name="depth_ae_roi_right" value="$(arg depth_ae_roi_right)"/>
+            <param name="depth_ae_roi_top" value="$(arg depth_ae_roi_top)"/>
+            <param name="depth_ae_roi_bottom" value="$(arg depth_ae_roi_bottom)"/>
             <param name="depth_registration" value="$(arg depth_registration)"/>
             <param name="depth_rotation" value="$(arg depth_rotation)"/>
 

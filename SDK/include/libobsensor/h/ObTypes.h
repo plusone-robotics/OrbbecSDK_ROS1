@@ -1,9 +1,6 @@
 // Copyright (c) Orbbec Inc. All Rights Reserved.
 // Licensed under the MIT License.
 
-// License: Apache 2.0. See LICENSE file in root directory.
-// Copyright(c) 2020 Orbbec  Corporation. All Rights Reserved.
-
 /**
  * @file ObTypes.h
  * @brief Provide structs commonly used in the SDK, enumerating constant definitions.
@@ -26,6 +23,8 @@ typedef struct ob_context_t                      ob_context;
 typedef struct ob_device_t                       ob_device;
 typedef struct ob_device_info_t                  ob_device_info;
 typedef struct ob_device_list_t                  ob_device_list;
+typedef struct ob_record_device_t                ob_record_device;
+typedef struct ob_playback_device_t              ob_playback_device;
 typedef struct ob_camera_param_list_t            ob_camera_param_list;
 typedef struct ob_sensor_t                       ob_sensor;
 typedef struct ob_sensor_list_t                  ob_sensor_list;
@@ -51,6 +50,11 @@ typedef struct ob_device_frame_interleave_list_t ob_device_frame_interleave_list
 #define OB_ACCEL_SAMPLE_RATE_ANY OB_SAMPLE_RATE_UNKNOWN
 #define OB_GYRO_FULL_SCALE_RANGE_ANY OB_GYRO_FS_UNKNOWN
 #define OB_GYRO_SAMPLE_RATE_ANY OB_SAMPLE_RATE_UNKNOWN
+
+/**
+ * @brief maximum path length
+ */
+#define OB_PATH_MAX (1024)
 
 /**
  * @brief the permission type of api or property
@@ -241,20 +245,24 @@ typedef enum {
  * @brief Enumeration value describing the firmware upgrade status
  */
 typedef enum {
-    STAT_VERIFY_SUCCESS = 5,  /**< Image file verifify success */
-    STAT_FILE_TRANSFER  = 4,  /**< file transfer */
-    STAT_DONE           = 3,  /**< update completed */
-    STAT_IN_PROGRESS    = 2,  /**< upgrade in process */
-    STAT_START          = 1,  /**< start the upgrade */
-    STAT_VERIFY_IMAGE   = 0,  /**< Image file verification */
-    ERR_VERIFY          = -1, /**< Verification failed */
-    ERR_PROGRAM         = -2, /**< Program execution failed */
-    ERR_ERASE           = -3, /**< Flash parameter failed */
-    ERR_FLASH_TYPE      = -4, /**< Flash type error */
-    ERR_IMAGE_SIZE      = -5, /**< Image file size error */
-    ERR_OTHER           = -6, /**< other errors */
-    ERR_DDR             = -7, /**< DDR access error */
-    ERR_TIMEOUT         = -8  /**< timeout error */
+    STAT_DONE_WITH_DUPLICATES = 6,   /**< update completed, but some files were duplicated and ignored */
+    STAT_VERIFY_SUCCESS       = 5,   /**< Image file verifify success */
+    STAT_FILE_TRANSFER        = 4,   /**< file transfer */
+    STAT_DONE                 = 3,   /**< update completed */
+    STAT_IN_PROGRESS          = 2,   /**< upgrade in process */
+    STAT_START                = 1,   /**< start the upgrade */
+    STAT_VERIFY_IMAGE         = 0,   /**< Image file verification */
+    ERR_VERIFY                = -1,  /**< Verification failed */
+    ERR_PROGRAM               = -2,  /**< Program execution failed */
+    ERR_ERASE                 = -3,  /**< Flash parameter failed */
+    ERR_FLASH_TYPE            = -4,  /**< Flash type error */
+    ERR_IMAGE_SIZE            = -5,  /**< Image file size error */
+    ERR_OTHER                 = -6,  /**< other errors */
+    ERR_DDR                   = -7,  /**< DDR access error */
+    ERR_TIMEOUT               = -8,  /**< timeout error */
+    ERR_MISMATCH              = -9,  /**< Mismatch firmware error */
+    ERR_UNSUPPORT_DEV         = -10, /**< Unsupported device error */
+    ERR_INVALID_COUNT         = -11, /**< invalid firmware/preset count */
 } OBUpgradeState,
     OBFwUpdateState, ob_upgrade_state, ob_fw_update_state;
 
@@ -490,6 +498,15 @@ typedef enum {
     ob_align_mode;
 
 /**
+ * @brief Camera performance mode
+ */
+typedef enum {
+    ADAPTIVE_PERFORMANCE_MODE, /**< Camera adaptive mode */
+    HIGH_PERFORMANCE_MODE,     /**< High Performance Mode */
+} OBCameraPerformanceMode,
+    ob_camera_performance_mode;
+
+/**
  * @brief Rectangle
  */
 typedef struct {
@@ -708,14 +725,14 @@ typedef struct {
     double  zpps;          // zpps=z0/fx
     float   baseline;      // baseline length, for monocular camera,it means the distance of laser to the center of IR-CMOS
     double  fx;            // focus
-    uint8_t bitSize;       // disparity bit size（raw disp bit size，for example: MX6000 is 12, MX6600 is 14）
-    float   unit;          // reference units：unit=10 denote 1cm; unit=1 denote 1mm; unit=0.5 denote 0.5mm; and so on
+    uint8_t bitSize;       // disparity bit size (raw disp bit size, for example: MX6000 is 12, MX6600 is 14)
+    float   unit;          // reference units: unit=10 denote 1cm; unit=1 denote 1mm; unit=0.5 denote 0.5mm; and so on
     float   minDisparity;  // dual disparity coefficient
     uint8_t packMode;      // data pack mode
-    float   dispOffset;    // disparity offset，actual disp=chip disp + disp_offset
-    int32_t invalidDisp;   // invalid disparity，usually is 0，dual IR add a auxiliary value.
-    int32_t dispIntPlace;  // disp integer digits，default is 8，Gemini2 XL is 10
-    uint8_t isDualCamera;  // 0 monocular camera，1 dual camera
+    float   dispOffset;    // disparity offset, actual disp=chip disp + disp_offset
+    int32_t invalidDisp;   // invalid disparity, usually is 0, dual IR add a auxiliary value.
+    int32_t dispIntPlace;  // disp integer digits, default is 8, Gemini2 XL is 10
+    uint8_t isDualCamera;  // 0 monocular camera, 1 dual camera
 } OBDisparityParam, ob_disparity_param;
 
 /**
@@ -820,7 +837,7 @@ typedef enum {
     /**
      * @brief Secondary synchronize mode
      * @brief Secondary device. Both process input trigger signal and output trigger signal to other devices.
-     * @brief Different sensors in a single devices receive trigger signals respectively：ext trigger -> RGB && ext trigger -> IR/Depth/TOF
+     * @brief Different sensors in a single devices receive trigger signals respectively: ext trigger -> RGB && ext trigger -> IR/Depth/TOF
      *
      * @attention With the current Gemini 2 device set to this mode, each Sensor receives the first external trigger signal
      *     after the stream is turned on and starts timing self-triggering at the set frame rate until the stream is turned off
@@ -854,9 +871,14 @@ typedef enum {
      * @brief Software trigger synchronize mode as secondary device
      * @brief The slave receives the external trigger signal (the external trigger signal comes from the soft trigger host) and outputs the trigger signal to
      * the external relay.
-     * @brief Different sensors in a single machine receive trigger signals respectively：ext trigger -> RGB && ext  trigger -> IR/Depth/TOF
+     * @brief Different sensors in a single machine receive trigger signals respectively: ext trigger -> RGB && ext  trigger -> IR/Depth/TOF
      */
     OB_SYNC_MODE_SECONDARY_SOFT_TRIGGER = 0x07,
+
+    /**
+     * @brief IR and IMU sync signal
+     */
+    OB_SYNC_MODE_IR_IMU_SYNC = 0x08,
 
     /**
      * @brief Unknown type
@@ -923,6 +945,16 @@ typedef struct {
     uint16_t deviceId;
 
 } OBDeviceSyncConfig, ob_device_sync_config, OB_DEVICE_SYNC_CONFIG;
+
+/**
+ * @brief Preset tag
+ */
+typedef enum {
+    OB_DEVICE_DEPTH_WORK_MODE = 0,
+    OB_CUSTOM_DEPTH_WORK_MODE = 1,
+} OBDepthWorkModeTag,
+    ob_depth_work_mode_tag;
+
 /**
  * @brief Depth work mode
  */
@@ -936,6 +968,11 @@ typedef struct {
      * @brief Name of work mode
      */
     char name[32];
+    /**
+     * @brief Preset tag
+     */
+    OBDepthWorkModeTag tag;
+
 } OBDepthWorkMode, ob_depth_work_mode;
 
 /**
@@ -1131,6 +1168,12 @@ typedef enum {
      * @attention In this mode, the user may return null when getting the specified type of data frame from the acquired FrameSet
      */
     OB_FRAME_AGGREGATE_OUTPUT_ANY_SITUATION,
+    /**
+     * @brief Disable Frame Aggreate
+     *
+     * @attention In this mode, All types of data frames will output independently.
+     */
+    OB_FRAME_AGGREGATE_OUTPUT_DISABLE,
 } OB_FRAME_AGGREGATE_OUTPUT_MODE,
     OBFrameAggregateOutputMode, ob_frame_aggregate_output_mode;
 #define OB_FRAME_AGGREGATE_OUTPUT_FULL_FRAME_REQUIRE OB_FRAME_AGGREGATE_OUTPUT_ALL_TYPE_FRAME_REQUIRE
@@ -1243,6 +1286,11 @@ typedef enum {
      */
     OB_MULTI_DEVICE_SYNC_MODE_HARDWARE_TRIGGERING = 1 << 6,
 
+    /**
+     * @brief IR and IMU sync mode
+     */
+    OB_MULTI_DEVICE_SYNC_MODE_IR_IMU_SYNC = 1 << 7,
+
 } ob_multi_device_sync_mode,
     OBMultiDeviceSyncMode;
 
@@ -1258,14 +1306,14 @@ typedef struct {
     /**
      * @brief The delay time of the depth image capture after receiving the capture command or trigger signal in microseconds.
      *
-     * @attention This parameter is only valid for some models， please refer to the product manual for details.
+     * @attention This parameter is only valid for some models, please refer to the product manual for details.
      */
     int depthDelayUs;
 
     /**
      * @brief The delay time of the color image capture after receiving the capture command or trigger signal in microseconds.
      *
-     * @attention This parameter is only valid for some models， please refer to the product manual for details.
+     * @attention This parameter is only valid for some models, please refer to the product manual for details.
      */
     int colorDelayUs;
 
@@ -1409,6 +1457,16 @@ typedef struct {
 } OBDeviceSerialNumber, ob_device_serial_number, OBSerialNumber, ob_serial_number;
 
 /**
+ * @brief Disparity offset interleaving configuration
+ */
+typedef struct {
+    uint8_t enable;
+    uint8_t offset0;
+    uint8_t offset1;
+    uint8_t reserved;
+} OBDispOffsetConfig, ob_disp_offset_config;
+
+/**
  * @brief Frame metadata types
  * @brief The frame metadata is a set of meta info generated by the device for current individual frame.
  */
@@ -1501,14 +1559,14 @@ typedef enum {
 
     /**
      * @brief Power line frequency
-     * @brief For anti-flickering， 0：Close， 1： 50Hz， 2： 60Hz， 3： Auto
+     * @brief For anti-flickering, 0: Close, 1: 50Hz, 2: 60Hz, 3: Auto
      */
     OB_FRAME_METADATA_TYPE_POWER_LINE_FREQUENCY = 15,
 
     /**
      * @brief Low light compensation
      *
-     * @attention The low light compensation is a feature inside the device，and can not manually control it.
+     * @attention The low light compensation is a feature inside the device, and can not manually control it.
      */
     OB_FRAME_METADATA_TYPE_LOW_LIGHT_COMPENSATION = 16,
 
@@ -1592,6 +1650,16 @@ typedef enum {
     OB_FRAME_METADATA_TYPE_GPIO_INPUT_DATA = 31,
 
     /**
+     * @brief disparity search offset value
+     */
+    OB_FRAME_METADATA_TYPE_DISPARITY_SEARCH_OFFSET = 32,
+
+    /**
+     * @brief disparity search range
+     */
+    OB_FRAME_METADATA_TYPE_DISPARITY_SEARCH_RANGE = 33,
+
+    /**
      * @brief The number of frame metadata types, using for types iterating
      * @attention It is not a valid frame metadata type
      */
@@ -1621,8 +1689,25 @@ typedef enum {
      *
      */
     OB_UVC_BACKEND_TYPE_V4L2,
+
+    /**
+     * @brief Use MSMF backend to access the UVC device
+     */
+    OB_UVC_BACKEND_TYPE_MSMF,
 } ob_uvc_backend_type,
     OBUvcBackendType;
+
+
+/**
+ * @brief The playback status of the media
+ */
+typedef enum {
+    OB_PLAYBACK_UNKNOWN ,
+    OB_PLAYBACK_PLAYING,  /**< The media is playing */
+    OB_PLAYBACK_PAUSED, /**< The media is paused */
+    OB_PLAYBACK_STOPPED, /**< The media is stopped */
+    OB_PLAYBACK_COUNT,
+} ob_playback_status, OBPlaybackStatus;
 
 // For compatibility
 #define OB_FRAME_METADATA_TYPE_LASER_POWER_MODE OB_FRAME_METADATA_TYPE_LASER_POWER_LEVEL
@@ -1730,6 +1815,7 @@ typedef void(ob_frame_destroy_callback)(uint8_t *buffer, void *user_data);
  */
 typedef void(ob_log_callback)(ob_log_severity severity, const char *message, void *user_data);
 
+typedef void(*ob_playback_status_changed_callback)(ob_playback_status status, void *user_data);
 /**
  * @brief Check if the sensor_type is a video sensor
  *

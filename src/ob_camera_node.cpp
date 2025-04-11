@@ -47,7 +47,10 @@ void OBCameraNode::init() {
   setupConfig();
   getParameters();
   setupDevices();
-  setupRecommendedPostFilters();
+  setupDepthPostProcessFilter();
+  setupColorPostProcessFilter();
+  setupRightIrPostProcessFilter();
+  setupLeftIrPostProcessFilter();
   selectBaseStream();
   setupProfiles();
   setupCameraInfo();
@@ -145,6 +148,8 @@ void OBCameraNode::getParameters() {
   }
   depth_aligned_frame_id_[DEPTH] = optical_frame_id_[COLOR];
 
+  accel_gyro_frame_id_ = camera_name_ + "_accel_gyro_optical_frame";
+
   publish_tf_ = nh_private_.param<bool>("publish_tf", false);
   depth_registration_ = nh_private_.param<bool>("depth_registration", false);
   enable_frame_sync_ = nh_private_.param<bool>("enable_frame_sync", false);
@@ -158,10 +163,47 @@ void OBCameraNode::getParameters() {
   depth_work_mode_ = nh_private_.param<std::string>("depth_work_mode", "");
   enable_soft_filter_ = nh_private_.param<bool>("enable_soft_filter", true);
   enable_color_auto_exposure_ = nh_private_.param<bool>("enable_color_auto_exposure", true);
+  enable_color_auto_exposure_priority_ =
+      nh_private_.param<bool>("enable_color_auto_exposure_priority", false);
+  enable_color_auto_white_balance_ =
+      nh_private_.param<bool>("enable_color_auto_white_balance", true);
+  enable_color_backlight_compenstation_ =
+      nh_private_.param<bool>("enable_color_backlight_compenstation", false);
+  enable_color_decimation_filter_ =
+      nh_private_.param<bool>("enable_color_decimation_filter", false);
+  color_ae_roi_left_ = nh_private_.param<int>("color_ae_roi_left", -1);
+  color_ae_roi_top_ = nh_private_.param<int>("color_ae_roi_top", -1);
+  color_ae_roi_right_ = nh_private_.param<int>("color_ae_roi_right", -1);
+  color_ae_roi_bottom_ = nh_private_.param<int>("color_ae_roi_bottom", -1);
   color_exposure_ = nh_private_.param<int>("color_exposure_", -1);
+  color_gain_ = nh_private_.param<int>("color_gain", -1);
+  color_brightness_ = nh_private_.param<int>("color_brightness", -1);
+  color_sharpness_ = nh_private_.param<int>("color_sharpness", -1);
+  color_gamma_ = nh_private_.param<int>("color_gamma", -1);
+  color_white_balance_ = nh_private_.param<int>("color_white_balance", -1);
+  color_saturation_ = nh_private_.param<int>("color_saturation", -1);
+  color_constrast_ = nh_private_.param<int>("color_constrast", -1);
+  color_hue_ = nh_private_.param<int>("color_hue", -1);
+  color_ae_max_exposure_ = nh_private_.param<int>("color_ae_max_exposure", -1);
+  color_decimation_filter_scale_ = nh_private_.param<int>("color_decimation_filter_scale", -1);
+  enable_depth_auto_exposure_priority_ =
+      nh_private_.param<bool>("enable_depth_auto_exposure_priority", false);
+  depth_ae_roi_left_ = nh_private_.param<int>("depth_ae_roi_left", -1);
+  depth_ae_roi_top_ = nh_private_.param<int>("depth_ae_roi_top", -1);
+  depth_ae_roi_right_ = nh_private_.param<int>("depth_ae_roi_right", -1);
+  depth_ae_roi_bottom_ = nh_private_.param<int>("depth_ae_roi_bottom", -1);
+  depth_brightness_ = nh_private_.param<int>("depth_brightness", -1);
   enable_ir_auto_exposure_ = nh_private_.param<bool>("enable_ir_auto_exposure", true);
   ir_exposure_ = nh_private_.param<int>("ir_exposure_", -1);
+  ir_brightness_ = nh_private_.param<int>("ir_brightness", -1);
+  ir_ae_max_exposure_ = nh_private_.param<int>("ir_ae_max_exposure", -1);
   enable_ir_long_exposure_ = nh_private_.param<bool>("enable_ir_long_exposure", false);
+  enable_right_ir_sequence_id_filter_ =
+      nh_private_.param<bool>("enable_right_ir_sequence_id_filter", false);
+  right_ir_sequence_id_filter_id_ = nh_private_.param<int>("right_ir_sequence_id_filter_id", -1);
+  enable_left_ir_sequence_id_filter_ =
+      nh_private_.param<bool>("enable_left_ir_sequence_id_filter", false);
+  left_ir_sequence_id_filter_id_ = nh_private_.param<int>("left_ir_sequence_id_filter_id", -1);
   sync_mode_str_ = nh_private_.param<std::string>("sync_mode", "standalone");
   depth_delay_us_ = nh_private_.param<int>("depth_delay_us", 0);
   color_delay_us_ = nh_private_.param<int>("color_delay_us", 0);
@@ -208,6 +250,8 @@ void OBCameraNode::getParameters() {
   enable_hdr_merge_ = nh_private_.param<bool>("enable_hdr_merge", false);
   enable_sequenced_filter_ = nh_private_.param<bool>("enable_sequenced_filter", false);
   enable_threshold_filter_ = nh_private_.param<bool>("enable_threshold_filter", false);
+  enable_hardware_noise_removal_filter_ =
+      nh_private_.param<bool>("enable_hardware_noise_removal_filter", true);
   enable_noise_removal_filter_ = nh_private_.param<bool>("enable_noise_removal_filter", true);
   enable_spatial_filter_ = nh_private_.param<bool>("enable_spatial_filter", false);
   enable_temporal_filter_ = nh_private_.param<bool>("enable_temporal_filter", false);
@@ -216,6 +260,8 @@ void OBCameraNode::getParameters() {
   sequence_id_filter_id_ = nh_private_.param<int>("sequence_id_filter_id", -1);
   threshold_filter_max_ = nh_private_.param<int>("threshold_filter_max", -1);
   threshold_filter_min_ = nh_private_.param<int>("threshold_filter_min", -1);
+  hardware_noise_removal_filter_threshold_ =
+      nh_private_.param<float>("hardware_noise_removal_filter_threshold", -1.0);
   noise_removal_filter_min_diff_ = nh_private_.param<int>("noise_removal_filter_min_diff", 256);
   noise_removal_filter_max_size_ = nh_private_.param<int>("noise_removal_filter_max_size", 80);
   spatial_filter_alpha_ = nh_private_.param<float>("spatial_filter_alpha", -1.0);
@@ -232,7 +278,6 @@ void OBCameraNode::getParameters() {
   hdr_merge_gain_2_ = nh_private_.param<int>("hdr_merge_gain_2", -1);
   diagnostics_frequency_ = nh_private_.param<double>("diagnostics_frequency", 1.0);
   enable_laser_ = nh_private_.param<bool>("enable_laser", true);
-  laser_on_off_mode_ = nh_private_.param<int>("laser_on_off_mode", 0);
   align_mode_ = nh_private_.param<std::string>("align_mode", "HW");
   enable_color_hdr_ = nh_private_.param<bool>("enable_color_hdr", false);
   enable_depth_scale_ = nh_private_.param<bool>("enable_depth_scale", true);
@@ -242,7 +287,66 @@ void OBCameraNode::getParameters() {
   enable_ldp_ = nh_private_.param<bool>("enable_ldp", true);
   tf_publish_rate_ = nh_private_.param<double>("tf_publish_rate", 0.0);
   enable_heartbeat_ = nh_private_.param<bool>("enable_heartbeat", false);
-  time_domain_ = nh_private_.param<std::string>("time_domain", "device");
+  time_domain_ = nh_private_.param<std::string>("time_domain", "global");
+  exposure_range_mode_ = nh_private_.param<std::string>("exposure_range_mode", "default");
+  disparity_range_mode_ = nh_private_.param<int>("disparity_range_mode", -1);
+  disparity_search_offset_ = nh_private_.param<int>("disparity_search_offset", -1);
+  disparity_offset_config_ = nh_private_.param<bool>("disparity_offset_config", false);
+  offset_index0_ = nh_private_.param<int>("offset_index0", -1);
+  offset_index1_ = nh_private_.param<int>("offset_index1", -1);
+  frame_aggregate_mode_ = nh_private_.param<std::string>("frame_aggregate_mode", "ANY");
+  interleave_ae_mode_ = nh_private_.param<std::string>("interleave_ae_mode", "hdr");
+  interleave_frame_enable_ = nh_private_.param<bool>("interleave_frame_enable", false);
+  interleave_skip_enable_ = nh_private_.param<bool>("interleave_skip_enable", false);
+  interleave_skip_index_ = nh_private_.param<int>("interleave_skip_index", 1);
+  // hdr and laser interleave params
+  hdr_index1_laser_control_ = nh_private_.param<int>("hdr_index1_laser_control", 1);
+  hdr_index1_depth_exposure_ = nh_private_.param<int>("hdr_index1_depth_exposure", 1);
+  hdr_index1_depth_gain_ = nh_private_.param<int>("hdr_index1_depth_gain", 16);
+  hdr_index1_ir_brightness_ = nh_private_.param<int>("hdr_index1_ir_brightness", 20);
+  hdr_index1_ir_ae_max_exposure_ = nh_private_.param<int>("hdr_index1_ir_ae_max_exposure", 2000);
+  hdr_index0_laser_control_ = nh_private_.param<int>("hdr_index0_laser_control", 1);
+  hdr_index0_depth_exposure_ = nh_private_.param<int>("hdr_index0_depth_exposure_", 7500);
+  hdr_index0_depth_gain_ = nh_private_.param<int>("hdr_index0_depth_gain", 16);
+  hdr_index0_ir_brightness_ = nh_private_.param<int>("hdr_index0_ir_brightness", 60);
+  hdr_index0_ir_ae_max_exposure_ = nh_private_.param<int>("hdr_index0_ir_ae_max_exposure", 10000);
+
+  laser_index1_laser_control_ = nh_private_.param<int>("laser_index1_laser_control", 0);
+  laser_index1_depth_exposure_ = nh_private_.param<int>("laser_index1_depth_exposure", 3000);
+  laser_index1_depth_gain_ = nh_private_.param<int>("laser_index1_depth_gain", 16);
+  laser_index1_ir_brightness_ = nh_private_.param<int>("laser_index1_ir_brightness", 60);
+  laser_index1_ir_ae_max_exposure_ =
+      nh_private_.param<int>("laser_index1_ir_ae_max_exposure", 7000);
+  laser_index0_laser_control_ = nh_private_.param<int>("laser_index0_laser_control", 1);
+  laser_index0_depth_exposure_ = nh_private_.param<int>("laser_index0_depth_exposure", 3000);
+  laser_index0_depth_gain_ = nh_private_.param<int>("laser_index0_depth_gain", 16);
+  laser_index0_ir_brightness_ = nh_private_.param<int>("laser_index0_ir_brightness", 60);
+  laser_index0_ir_ae_max_exposure_ =
+      nh_private_.param<int>("laser_index0_ir_ae_max_exposure", 17000);
+  ROS_INFO_STREAM("hdr_index1_laser_control_ "
+                  << hdr_index1_laser_control_ << " hdr_index1_depth_exposure_ "
+                  << hdr_index1_depth_exposure_ << " hdr_index1_depth_gain_ "
+                  << hdr_index1_depth_gain_ << " hdr_index1_ir_brightness_ "
+                  << hdr_index1_ir_brightness_ << " hdr_index1_ir_ae_max_exposure_ "
+                  << hdr_index1_ir_ae_max_exposure_ << "\n");
+  ROS_INFO_STREAM("hdr_index0_laser_control_ "
+                  << hdr_index0_laser_control_ << " hdr_index0_depth_exposure_ "
+                  << hdr_index0_depth_exposure_ << " hdr_index0_depth_gain_ "
+                  << hdr_index0_depth_gain_ << " hdr_index0_ir_brightness_ "
+                  << hdr_index0_ir_brightness_ << " hdr_index0_ir_ae_max_exposure_ "
+                  << hdr_index0_ir_ae_max_exposure_ << "\n");
+  ROS_INFO_STREAM("laser_index1_laser_control_ "
+                  << laser_index1_laser_control_ << " laser_index1_depth_exposure_ "
+                  << laser_index1_depth_exposure_ << " laser_index1_depth_gain_ "
+                  << laser_index1_depth_gain_ << " laser_index1_ir_brightness_ "
+                  << laser_index1_ir_brightness_ << " laser_index1_ir_ae_max_exposure_ "
+                  << laser_index1_ir_ae_max_exposure_ << "\n");
+  ROS_INFO_STREAM("laser_index0_laser_control_ "
+                  << laser_index0_laser_control_ << " laser_index0_depth_exposure_ "
+                  << laser_index0_depth_exposure_ << " laser_index0_depth_gain_ "
+                  << laser_index0_depth_gain_ << " laser_index0_ir_brightness_ "
+                  << laser_index0_ir_brightness_ << " laser_index0_ir_ae_max_exposure_ "
+                  << laser_index0_ir_ae_max_exposure_ << "\n");
   auto device_info = device_->getDeviceInfo();
   CHECK_NOTNULL(device_info.get());
   auto pid = device_info->pid();
@@ -254,6 +358,98 @@ void OBCameraNode::getParameters() {
   }
 
   ROS_INFO_STREAM("current time domain:" << time_domain_);
+
+  enable_sync_host_time_ = nh_private_.param<bool>("enable_sync_host_time", true);
+  ROS_INFO_STREAM("enable_sync_host_time:" << enable_sync_host_time_);
+  if (enable_sync_host_time_ && !isOpenNIDevice(device_info_->pid())) {
+    device_->timerSyncWithHost();
+    if (time_domain_ != "global") {
+      sync_host_time_timer_ =
+          nh_private_.createTimer(ros::Duration(60.0), [this](const ros::TimerEvent&) {
+            if (device_) {
+              device_->timerSyncWithHost();
+            }
+          });
+    }
+  }
+}
+
+void OBCameraNode::init_interleave_mode() {
+  static bool has_run = false;
+  if (has_run) {
+    return;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  // set interleave mode
+  if (interleave_ae_mode_ == "hdr" && interleave_frame_enable_) {
+    ROS_INFO_STREAM("Setting interleave mode to hdr");
+    device_->loadFrameInterleave("Depth from HDR");
+    init_interleave_hdr_param();
+  } else if (interleave_ae_mode_ == "laser" && interleave_frame_enable_) {
+    ROS_INFO_STREAM("Setting interleave mode to laser");
+    device_->loadFrameInterleave("Laser On-Off");
+    init_interleave_laser_param();
+  } else {
+    ROS_INFO_STREAM("Setting interleave mode to nothing");
+  }
+  // enable interleave frame
+  if ((interleave_ae_mode_ == "hdr") || (interleave_ae_mode_ == "laser")) {
+    ROS_INFO_STREAM("current interleave_ae_mode_: " << interleave_ae_mode_);
+    if (device_->isPropertySupported(OB_PROP_FRAME_INTERLEAVE_ENABLE_BOOL, OB_PERMISSION_WRITE)) {
+      device_->setBoolProperty(OB_PROP_FRAME_INTERLEAVE_ENABLE_BOOL, interleave_frame_enable_);
+      ROS_INFO_STREAM("Enable enable_interleave_depth_frame to "
+                      << (interleave_frame_enable_ ? "true" : "false"));
+    }
+  }
+  // set interleave larse PATTERN_SYNC_DELAY
+  if ((interleave_ae_mode_ == "laser") && interleave_frame_enable_ &&
+      device_->isPropertySupported(OB_PROP_FRAME_INTERLEAVE_LASER_PATTERN_SYNC_DELAY_INT,
+                                   OB_PERMISSION_READ_WRITE) &&
+      (sync_mode_str_ == "PRIMARY" || sync_mode_str_ == "SOFTWARE_TRIGGERING")) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    device_->setIntProperty(OB_PROP_FRAME_INTERLEAVE_LASER_PATTERN_SYNC_DELAY_INT, 0);
+    ROS_INFO_STREAM("Setting OB_PROP_FRAME_INTERLEAVE_LASER_PATTERN_SYNC_DELAY_INT 0 ");
+  }
+  has_run = true;
+}
+int OBCameraNode::init_interleave_hdr_param() {
+  device_->setIntProperty(OB_PROP_FRAME_INTERLEAVE_CONFIG_INDEX_INT, 1);
+  device_->setIntProperty(OB_PROP_LASER_CONTROL_INT, hdr_index1_laser_control_);
+  device_->setIntProperty(OB_PROP_DEPTH_EXPOSURE_INT, hdr_index1_depth_exposure_);
+  device_->setIntProperty(OB_PROP_IR_EXPOSURE_INT, hdr_index1_depth_exposure_);
+  device_->setIntProperty(OB_PROP_DEPTH_GAIN_INT, hdr_index1_depth_gain_);
+  device_->setIntProperty(OB_PROP_IR_BRIGHTNESS_INT, hdr_index1_ir_brightness_);
+  device_->setIntProperty(OB_PROP_IR_AE_MAX_EXPOSURE_INT, hdr_index1_ir_ae_max_exposure_);
+
+  // set interleaveae
+  device_->setIntProperty(OB_PROP_FRAME_INTERLEAVE_CONFIG_INDEX_INT, 0);
+  device_->setIntProperty(OB_PROP_LASER_CONTROL_INT, hdr_index0_laser_control_);
+  device_->setIntProperty(OB_PROP_DEPTH_EXPOSURE_INT, hdr_index0_depth_exposure_);
+  device_->setIntProperty(OB_PROP_IR_EXPOSURE_INT, hdr_index0_depth_exposure_);
+  device_->setIntProperty(OB_PROP_DEPTH_GAIN_INT, hdr_index0_depth_gain_);
+  device_->setIntProperty(OB_PROP_IR_BRIGHTNESS_INT, hdr_index0_ir_brightness_);
+  device_->setIntProperty(OB_PROP_IR_AE_MAX_EXPOSURE_INT, hdr_index0_ir_ae_max_exposure_);
+  return 0;
+}
+
+int OBCameraNode::init_interleave_laser_param() {
+  device_->setIntProperty(OB_PROP_FRAME_INTERLEAVE_CONFIG_INDEX_INT, 1);
+  device_->setIntProperty(OB_PROP_LASER_CONTROL_INT, laser_index1_laser_control_);
+  device_->setIntProperty(OB_PROP_DEPTH_EXPOSURE_INT, laser_index1_depth_exposure_);
+  device_->setIntProperty(OB_PROP_IR_EXPOSURE_INT, laser_index1_depth_exposure_);
+  device_->setIntProperty(OB_PROP_DEPTH_GAIN_INT, laser_index1_depth_gain_);
+  device_->setIntProperty(OB_PROP_IR_BRIGHTNESS_INT, laser_index1_ir_brightness_);
+  device_->setIntProperty(OB_PROP_IR_AE_MAX_EXPOSURE_INT, laser_index1_ir_ae_max_exposure_);
+
+  // set interleaveae
+  device_->setIntProperty(OB_PROP_FRAME_INTERLEAVE_CONFIG_INDEX_INT, 0);
+  device_->setIntProperty(OB_PROP_LASER_CONTROL_INT, laser_index0_laser_control_);
+  device_->setIntProperty(OB_PROP_DEPTH_EXPOSURE_INT, laser_index0_depth_exposure_);
+  device_->setIntProperty(OB_PROP_IR_EXPOSURE_INT, laser_index0_depth_exposure_);
+  device_->setIntProperty(OB_PROP_DEPTH_GAIN_INT, laser_index0_depth_gain_);
+  device_->setIntProperty(OB_PROP_IR_BRIGHTNESS_INT, laser_index0_ir_brightness_);
+  device_->setIntProperty(OB_PROP_IR_AE_MAX_EXPOSURE_INT, laser_index0_ir_ae_max_exposure_);
+  return 0;
 }
 
 void OBCameraNode::startStreams() {
@@ -285,7 +481,7 @@ void OBCameraNode::startStreams() {
       ROS_ERROR_STREAM("failed to start pipeline");
       throw;
     }
-
+    init_interleave_mode();
     if (!colorFrameThread_ && enable_stream_[COLOR]) {
       ROS_INFO_STREAM("Create color frame read thread.");
       colorFrameThread_ = std::make_shared<std::thread>([this]() { onNewColorFrameCallback(); });
@@ -440,6 +636,17 @@ void OBCameraNode::stopStreams() {
     CHECK_NOTNULL(pipeline_.get());
     try {
       pipeline_->stop();
+      // disable interleave frame
+      if ((interleave_ae_mode_ == "hdr") || (interleave_ae_mode_ == "laser") && !is_running_) {
+        ROS_INFO_STREAM("current interleave_ae_mode_: " << interleave_ae_mode_);
+        if (device_->isPropertySupported(OB_PROP_FRAME_INTERLEAVE_ENABLE_BOOL,
+                                         OB_PERMISSION_WRITE)) {
+          interleave_frame_enable_ = false;
+          ROS_INFO_STREAM("Enable enable_interleave_depth_frame to "
+                          << (interleave_frame_enable_ ? "true" : "false"));
+          device_->setBoolProperty(OB_PROP_FRAME_INTERLEAVE_ENABLE_BOOL, interleave_frame_enable_);
+        }
+      }
     } catch (const ob::Error& e) {
       ROS_ERROR_STREAM("Failed to stop pipeline: " << e.getMessage());
     }
@@ -853,26 +1060,34 @@ void OBCameraNode::onNewIMUFrameSyncOutputCallback(const std::shared_ptr<ob::Fra
   auto imu_msg = sensor_msgs::Imu();
   setDefaultIMUMessage(imu_msg);
 
-  imu_msg.header.frame_id = imu_optical_frame_id_;
+  imu_msg.header.frame_id = optical_frame_id_[GYRO];
   auto frame_timestamp = getFrameTimestampUs(accel_frame);
   auto timestamp = fromUsToROSTime(frame_timestamp);
   imu_msg.header.stamp = timestamp;
-  auto gyro_cast_frame = gyro_frame->as<ob::GyroFrame>();
+
   auto gyro_info = createIMUInfo(GYRO);
   gyro_info.header = imu_msg.header;
-  gyro_info.header.frame_id = imu_optical_frame_id_;
   imu_info_publishers_[GYRO].publish(gyro_info);
+
+  auto accel_info = createIMUInfo(ACCEL);
+  imu_msg.header.frame_id = optical_frame_id_[ACCEL];
+  accel_info.header = imu_msg.header;
+  imu_info_publishers_[ACCEL].publish(accel_info);
+
+  imu_msg.header.frame_id = accel_gyro_frame_id_;
+
+  auto gyro_cast_frame = gyro_frame->as<ob::GyroFrame>();
   auto gyroData = gyro_cast_frame->value();
   imu_msg.angular_velocity.x = gyroData.x - gyro_info.bias[0];
   imu_msg.angular_velocity.y = gyroData.y - gyro_info.bias[1];
   imu_msg.angular_velocity.z = gyroData.z - gyro_info.bias[2];
+
   auto accel_cast_frame = accel_frame->as<ob::AccelFrame>();
   auto accelData = accel_cast_frame->value();
-  auto accel_info = createIMUInfo(ACCEL);
   imu_msg.linear_acceleration.x = accelData.x - accel_info.bias[0];
   imu_msg.linear_acceleration.y = accelData.y - accel_info.bias[1];
   imu_msg.linear_acceleration.z = accelData.z - accel_info.bias[2];
-  imu_info_publishers_[ACCEL].publish(accel_info);
+
   imu_gyro_accel_publisher_.publish(imu_msg);
 }
 
@@ -899,10 +1114,11 @@ void OBCameraNode::onNewIMUFrameCallback(const std::shared_ptr<ob::Frame>& frame
   auto frame_timestamp = getFrameTimestampUs(frame);
   auto timestamp = fromUsToROSTime(frame_timestamp);
   imu_msg.header.stamp = timestamp;
+
   auto imu_info = createIMUInfo(stream_index);
   imu_info.header = imu_msg.header;
-  imu_info.header.frame_id = imu_optical_frame_id_;
   imu_info_publishers_[stream_index].publish(imu_info);
+
   if (frame->type() == OB_FRAME_GYRO) {
     auto gyro_frame = frame->as<ob::GyroFrame>();
     auto data = gyro_frame->value();
@@ -1007,13 +1223,68 @@ std::shared_ptr<ob::Frame> OBCameraNode::decodeIRMJPGFrame(
   return nullptr;
 }
 
+std::shared_ptr<ob::Frame> OBCameraNode::processRightIrFrameFilter(
+    std::shared_ptr<ob::Frame>& frame) {
+  if (frame == nullptr || frame->getType() != OB_FRAME_IR_RIGHT) {
+    return nullptr;
+  }
+  for (size_t i = 0; i < right_ir_filter_list_.size(); i++) {
+    auto filter = right_ir_filter_list_[i];
+    CHECK_NOTNULL(filter.get());
+    if (filter->isEnabled() && frame != nullptr) {
+      frame = filter->process(frame);
+      if (frame == nullptr) {
+        ROS_ERROR_STREAM("Right Ir filter process failed");
+        break;
+      }
+    }
+  }
+  return frame;
+}
+std::shared_ptr<ob::Frame> OBCameraNode::processLeftIrFrameFilter(
+    std::shared_ptr<ob::Frame>& frame) {
+  if (frame == nullptr || frame->getType() != OB_FRAME_IR_LEFT) {
+    return nullptr;
+  }
+  for (size_t i = 0; i < left_ir_filter_list_.size(); i++) {
+    auto filter = left_ir_filter_list_[i];
+    CHECK_NOTNULL(filter.get());
+    if (filter->isEnabled() && frame != nullptr) {
+      frame = filter->process(frame);
+      if (frame == nullptr) {
+        ROS_ERROR_STREAM("Left Ir filter process failed");
+        break;
+      }
+    }
+  }
+  return frame;
+}
+
+std::shared_ptr<ob::Frame> OBCameraNode::processColorFrameFilter(
+    std::shared_ptr<ob::Frame>& frame) {
+  if (frame == nullptr || frame->getType() != OB_FRAME_COLOR) {
+    return nullptr;
+  }
+  for (size_t i = 0; i < color_filter_list_.size(); i++) {
+    auto filter = color_filter_list_[i];
+    CHECK_NOTNULL(filter.get());
+    if (filter->isEnabled() && frame != nullptr) {
+      frame = filter->process(frame);
+      if (frame == nullptr) {
+        ROS_ERROR_STREAM("Color filter process failed");
+        break;
+      }
+    }
+  }
+  return frame;
+}
 std::shared_ptr<ob::Frame> OBCameraNode::processDepthFrameFilter(
     std::shared_ptr<ob::Frame>& frame) {
   if (frame == nullptr || frame->type() != OB_FRAME_DEPTH) {
     return nullptr;
   }
-  for (size_t i = 0; i < filter_list_.size(); i++) {
-    auto filter = filter_list_[i];
+  for (size_t i = 0; i < depth_filter_list_.size(); i++) {
+    auto filter = depth_filter_list_[i];
     CHECK_NOTNULL(filter.get());
     if (filter->isEnabled() && frame != nullptr) {
       frame = filter->process(frame);
@@ -1054,27 +1325,40 @@ void OBCameraNode::onNewFrameSetCallback(std::shared_ptr<ob::FrameSet> frame_set
   }
   ROS_INFO_STREAM_ONCE("Received first frame set");
   try {
-    std::shared_ptr<ob::ColorFrame> color_frame = frame_set->colorFrame();
+    // std::shared_ptr<ob::ColorFrame> color_frame = frame_set->colorFrame();
     auto depth_frame = frame_set->getFrame(OB_FRAME_DEPTH);
-    depth_frame = processDepthFrameFilter(depth_frame);
-    bool depth_aligned = false;
+    auto color_frame = frame_set->getFrame(OB_FRAME_COLOR);
+    auto left_ir_frame = frame_set->getFrame(OB_FRAME_IR_LEFT);
+    auto right_ir_frame = frame_set->getFrame(OB_FRAME_IR_RIGHT);
     if (depth_frame) {
+      setDisparitySearchOffset();
+      setDepthAutoExposureROI();
+      depth_frame = processDepthFrameFilter(depth_frame);
       frame_set->pushFrame(depth_frame);
     }
-    if (depth_registration_ && align_filter_ && depth_frame && color_frame) {
+    if (color_frame) {
+      setColorAutoExposureROI();
+      color_frame = processColorFrameFilter(color_frame);
+      frame_set->pushFrame(color_frame);
+    }
+    if (left_ir_frame) {
+      left_ir_frame = processLeftIrFrameFilter(left_ir_frame);
+      frame_set->pushFrame(left_ir_frame);
+    }
+    if (right_ir_frame) {
+      right_ir_frame = processRightIrFrameFilter(right_ir_frame);
+      frame_set->pushFrame(right_ir_frame);
+    }
+
+    if (depth_registration_ && align_filter_ && depth_frame) {
       if (auto new_frame = align_filter_->process(frame_set)) {
         auto new_frame_set = new_frame->as<ob::FrameSet>();
         CHECK_NOTNULL(new_frame_set.get());
         frame_set = new_frame_set;
-        depth_aligned = true;
       } else {
         ROS_ERROR_STREAM("Depth frame alignment failed");
         return;
       }
-    }
-    // check if align filter failed, if so, return
-    if (depth_registration_ && align_filter_ && !depth_aligned) {
-      return;
     }
     if (enable_stream_[COLOR] && color_frame) {
       std::unique_lock<std::mutex> colorLock(colorFrameMtx_);

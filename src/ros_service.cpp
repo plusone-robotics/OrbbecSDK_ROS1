@@ -37,6 +37,12 @@ void OBCameraNode::setupCameraCtrlServices() {
           response.success = this->setExposureCallback(request, response, stream_index);
           return response.success;
         });
+    service_name = "/" + camera_name_ + "/" + "set_" + stream_name + "_ae_roi";
+    set_ae_roi_srv_[stream_index] = nh_.advertiseService<SetArraysRequest, SetArraysResponse>(
+        service_name, [this, stream_index](SetArraysRequest& request, SetArraysResponse& response) {
+          response.success = this->setAeRoiCallback(request, response, stream_index);
+          return response.success;
+        });
     service_name = "/" + camera_name_ + "/" + "reset_" + stream_name + "_exposure";
     reset_exposure_srv_[stream_index] =
         nh_.advertiseService<std_srvs::EmptyRequest, std_srvs::EmptyResponse>(
@@ -215,10 +221,10 @@ void OBCameraNode::setupCameraCtrlServices() {
         response.success = this->switchIRDataSourceChannelCallback(request, response);
         return response.success;
       });
-  get_ldp_measure_distance_srv_ = nh_.advertiseService<GetInt32Request, GetInt32Response>(
-      "/" + camera_name_ + "/" + "get_ldp_measure_distance",
+  get_lrm_measure_distance_srv_ = nh_.advertiseService<GetInt32Request, GetInt32Response>(
+      "/" + camera_name_ + "/" + "get_lrm_measure_distance",
       [this](GetInt32Request& request, GetInt32Response& response) {
-        response.success = this->getLdpMeasureDistanceCallback(request, response);
+        response.success = this->getLrmMeasureDistanceCallback(request, response);
         return response.success;
       });
 }
@@ -284,6 +290,56 @@ bool OBCameraNode::setExposureCallback(SetInt32Request& request, SetInt32Respons
     return false;
   }
   return true;
+}
+
+bool OBCameraNode::setAeRoiCallback(SetArraysRequest& request, SetArraysResponse& response,
+                                    const stream_index_pair& stream_index) {
+  auto stream = stream_index.first;
+  auto config = OBRegionOfInterest();
+  try {
+    switch (stream) {
+      case OB_STREAM_IR_LEFT:
+      case OB_STREAM_IR_RIGHT:
+      case OB_STREAM_IR:
+      case OB_STREAM_DEPTH:
+        config.x0_left = static_cast<short int>(request.data_param[0]);
+        config.x1_right = static_cast<short int>(request.data_param[1]);
+        config.y0_top = static_cast<short int>(request.data_param[2]);
+        config.y1_bottom = static_cast<short int>(request.data_param[3]);
+        device_->setStructuredData(OB_STRUCT_DEPTH_AE_ROI,
+                                   reinterpret_cast<const uint8_t*>(&config), sizeof(config));
+        ROS_INFO_STREAM("set depth AE ROI : " << "[Left: " << config.x0_left << ", Right: "
+                                              << config.x1_right << ", Top: " << config.y0_top
+                                              << ", Bottom: " << config.y1_bottom << " ]");
+        break;
+      case OB_STREAM_COLOR:
+        config.x0_left = static_cast<short int>(request.data_param[0]);
+        config.x1_right = static_cast<short int>(request.data_param[1]);
+        config.y0_top = static_cast<short int>(request.data_param[2]);
+        config.y1_bottom = static_cast<short int>(request.data_param[3]);
+        device_->setStructuredData(OB_STRUCT_COLOR_AE_ROI,
+                                   reinterpret_cast<const uint8_t*>(&config), sizeof(config));
+        ROS_INFO_STREAM("set color AE ROI : " << "[Left: " << config.x0_left << ", Right: "
+                                              << config.x1_right << ", Top: " << config.y0_top
+                                              << ", Bottom: " << config.y1_bottom << " ]");
+        break;
+      default:
+        ROS_ERROR_STREAM(" NOT a video stream" << __FUNCTION__);
+        response.success = false;
+        response.message = "NOT a video stream";
+        return response.success = false;
+    }
+    return response.success = true;
+  } catch (const ob::Error& e) {
+    return response.success = false;
+    response.message = e.getMessage();
+  } catch (const std::exception& e) {
+    return response.success = false;
+    response.message = e.what();
+  } catch (...) {
+    return response.success = false;
+    response.message = "unknown error";
+  }
 }
 
 bool OBCameraNode::getGainCallback(GetInt32Request& request, GetInt32Response& response,
@@ -484,8 +540,22 @@ bool OBCameraNode::setLdpEnableCallback(std_srvs::SetBoolRequest& request,
                                         std_srvs::SetBoolResponse& response) {
   (void)response;
   std::lock_guard<decltype(device_lock_)> lock(device_lock_);
+  bool ldp_enable = request.data;
   try {
-    device_->setBoolProperty(OB_PROP_LDP_BOOL, request.data);
+    if (device_->isPropertySupported(OB_PROP_LASER_CONTROL_INT, OB_PERMISSION_READ_WRITE)) {
+      auto laser_enable = device_->getIntProperty(OB_PROP_LASER_CONTROL_INT);
+      device_->setBoolProperty(OB_PROP_LDP_BOOL, ldp_enable);
+      device_->setIntProperty(OB_PROP_LASER_CONTROL_INT, laser_enable);
+    } else if (device_->isPropertySupported(OB_PROP_LASER_BOOL, OB_PERMISSION_READ_WRITE)) {
+      if (!ldp_enable) {
+        auto laser_enable = device_->getIntProperty(OB_PROP_LASER_BOOL);
+        device_->setBoolProperty(OB_PROP_LDP_BOOL, ldp_enable);
+        std::this_thread::sleep_for(std::chrono::milliseconds(3));
+        device_->setIntProperty(OB_PROP_LASER_BOOL, laser_enable);
+      } else {
+        device_->setBoolProperty(OB_PROP_LDP_BOOL, ldp_enable);
+      }
+    }
   } catch (const ob::Error& e) {
     ROS_ERROR_STREAM("Failed to set LDP: " << e.getMessage());
     response.message = e.getMessage();
@@ -683,7 +753,7 @@ bool OBCameraNode::getDeviceTypeCallback(GetStringRequest& request, GetStringRes
   return true;
 }
 
-bool OBCameraNode::getLdpMeasureDistanceCallback(GetInt32Request& request,
+bool OBCameraNode::getLrmMeasureDistanceCallback(GetInt32Request& request,
                                                  GetInt32Response& response) {
   (void)request;
   std::lock_guard<decltype(device_lock_)> lock(device_lock_);

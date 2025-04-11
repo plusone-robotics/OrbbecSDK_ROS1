@@ -97,7 +97,13 @@ class OBCameraNode {
 
   void selectBaseStream();
 
-  void setupRecommendedPostFilters();
+  void setupDepthPostProcessFilter();
+
+  void setupColorPostProcessFilter();
+
+  void setupRightIrPostProcessFilter();
+
+  void setupLeftIrPostProcessFilter();
 
   void setupFrameCallback();
 
@@ -127,6 +133,12 @@ class OBCameraNode {
   void onNewFrameSetCallback(std::shared_ptr<ob::FrameSet> frame_set);
 
   std::shared_ptr<ob::Frame> processDepthFrameFilter(std::shared_ptr<ob::Frame> &frame);
+
+  std::shared_ptr<ob::Frame> processColorFrameFilter(std::shared_ptr<ob::Frame> &frame);
+
+  std::shared_ptr<ob::Frame> processRightIrFrameFilter(std::shared_ptr<ob::Frame>& frame);
+
+  std::shared_ptr<ob::Frame> processLeftIrFrameFilter(std::shared_ptr<ob::Frame>& frame);
 
   uint64_t getFrameTimestampUs(const std::shared_ptr<ob::Frame> &frame);
 
@@ -232,6 +244,9 @@ class OBCameraNode {
   bool getGainCallback(GetInt32Request &request, GetInt32Response &response,
                        const stream_index_pair &stream_index);
 
+  bool setAeRoiCallback(SetArraysRequest &request, SetArraysResponse &response,
+                        const stream_index_pair &stream_index);
+
   bool setGainCallback(SetInt32Request &request, SetInt32Response &response,
                        const stream_index_pair &stream_index);
 
@@ -284,7 +299,7 @@ class OBCameraNode {
 
   bool getDeviceTypeCallback(GetStringRequest &request, GetStringResponse &response);
 
-  bool getLdpMeasureDistanceCallback(GetInt32Request &request, GetInt32Response &response);
+  bool getLrmMeasureDistanceCallback(GetInt32Request &request, GetInt32Response &response);
 
   bool getCameraInfoCallback(GetCameraInfoRequest &request, GetCameraInfoResponse &response,
                              const stream_index_pair &stream_index);
@@ -302,6 +317,19 @@ class OBCameraNode {
   bool switchIRModeCallback(SetInt32Request &request, SetInt32Response &response);
 
   bool switchIRDataSourceChannelCallback(SetStringRequest &request, SetStringResponse &response);
+
+  bool setFilterCallback(SetFilterRequest &request, SetFilterResponse &response);
+
+  // Set ROI
+  void setColorAutoExposureROI();
+  void setDepthAutoExposureROI();
+
+  void setDisparitySearchOffset();
+
+  // interleave AE
+  void init_interleave_mode();
+  int init_interleave_hdr_param();
+  int init_interleave_laser_param();
 
  private:
   ros::NodeHandle nh_;
@@ -351,10 +379,11 @@ class OBCameraNode {
   int default_white_balance_ = 0;
   std::string camera_link_frame_id_ = "camera_link";
   std::string camera_name_ = "camera";
-  const std::string imu_optical_frame_id_ = "camera_gyro_optical_frame";
+  std::string accel_gyro_frame_id_ = "camera_accel_gyro_optical_frame";
   const std::string imu_frame_id_ = "camera_gyro_frame";
   std::map<stream_index_pair, ros::ServiceServer> get_exposure_srv_;
   std::map<stream_index_pair, ros::ServiceServer> set_exposure_srv_;
+  std::map<stream_index_pair, ros::ServiceServer> set_ae_roi_srv_;
   std::map<stream_index_pair, ros::ServiceServer> reset_exposure_srv_;
   std::map<stream_index_pair, ros::ServiceServer> get_gain_srv_;
   std::map<stream_index_pair, ros::ServiceServer> set_gain_srv_;
@@ -383,7 +412,8 @@ class OBCameraNode {
   ros::ServiceServer save_images_srv_;
   ros::ServiceServer switch_ir_mode_srv_;
   ros::ServiceServer switch_ir_data_source_channel_srv_;
-  ros::ServiceServer get_ldp_measure_distance_srv_;
+  ros::ServiceServer get_lrm_measure_distance_srv_;
+  ros::ServiceServer set_filter_srv_;
 
   bool publish_tf_ = true;
   std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_ = nullptr;
@@ -397,7 +427,10 @@ class OBCameraNode {
   std::recursive_mutex device_lock_;
   std::shared_ptr<camera_info_manager::CameraInfoManager> color_camera_info_manager_ = nullptr;
   std::shared_ptr<camera_info_manager::CameraInfoManager> ir_camera_info_manager_ = nullptr;
-  std::vector<std::shared_ptr<ob::Filter>> filter_list_;
+  std::vector<std::shared_ptr<ob::Filter>> depth_filter_list_;
+  std::vector<std::shared_ptr<ob::Filter>> color_filter_list_;
+  std::vector<std::shared_ptr<ob::Filter>> left_ir_filter_list_;
+  std::vector<std::shared_ptr<ob::Filter>> right_ir_filter_list_;
   std::string ir_info_uri_;
   std::string color_info_uri_;
   bool enable_d2c_viewer_ = false;
@@ -418,10 +451,42 @@ class OBCameraNode {
   bool is_initialized_ = false;
   bool enable_soft_filter_ = true;
   bool enable_color_auto_exposure_ = true;
+  bool enable_color_auto_exposure_priority_ = false;
+  bool enable_color_auto_white_balance_ = true;
+  bool enable_color_backlight_compenstation_ = false;
+  bool enable_color_decimation_filter_ = false;
+  // color ae roi
+  int color_ae_roi_left_ = -1;
+  int color_ae_roi_top_ = -1;
+  int color_ae_roi_right_ = -1;
+  int color_ae_roi_bottom_ = -1;
   int color_exposure_ = -1;
+  int color_gain_ = -1;
+  int color_brightness_ = -1;
+  int color_sharpness_ = -1;
+  int color_gamma_ = -1;
+  int color_white_balance_ = -1;
+  int color_saturation_ = -1;
+  int color_constrast_ = -1;
+  int color_hue_ = -1;
+  int color_ae_max_exposure_ = -1;
+  int color_decimation_filter_scale_ = -1;
   bool enable_ir_auto_exposure_ = true;
   bool enable_depth_scale_ = true;
+  bool enable_depth_auto_exposure_priority_ = false;
+  // depth ae roi
+  int depth_ae_roi_left_ = -1;
+  int depth_ae_roi_top_ = -1;
+  int depth_ae_roi_right_ = -1;
+  int depth_ae_roi_bottom_ = -1;
+  int depth_brightness_ = -1;
   int ir_exposure_ = -1;
+  int ir_brightness_ = -1;
+  bool enable_right_ir_sequence_id_filter_=false;
+  int right_ir_sequence_id_filter_id_=-1;
+  bool enable_left_ir_sequence_id_filter_=false;
+  int left_ir_sequence_id_filter_id_=-1;
+  int ir_ae_max_exposure_ = -1;
   bool enable_ir_long_exposure_ = false;
   std::string depth_filter_config_;
   bool enable_depth_filter_ = false;
@@ -473,6 +538,7 @@ class OBCameraNode {
   bool enable_hdr_merge_ = false;
   bool enable_sequenced_filter_ = false;
   bool enable_threshold_filter_ = false;
+  bool enable_hardware_noise_removal_filter_ = true;
   bool enable_noise_removal_filter_ = true;
   bool enable_spatial_filter_ = true;
   bool enable_temporal_filter_ = false;
@@ -482,6 +548,7 @@ class OBCameraNode {
   int sequence_id_filter_id_ = -1;
   int threshold_filter_max_ = -1;
   int threshold_filter_min_ = -1;
+  float hardware_noise_removal_filter_threshold_ = -1.0;
   int noise_removal_filter_min_diff_ = -1;
   int noise_removal_filter_max_size_ = -1;
   float spatial_filter_alpha_ = -1.0;
@@ -501,7 +568,6 @@ class OBCameraNode {
   double diagnostics_frequency_ = 1.0;
   std::shared_ptr<std::thread> diagnostics_thread_ = nullptr;
   bool enable_laser_ = true;
-  int laser_on_off_mode_ = 0;
   std::string align_mode_ = "HW";
   std::shared_ptr<ob::Align> align_filter_ = nullptr;
   OBStreamType align_target_stream_ = OB_STREAM_COLOR;
@@ -522,7 +588,47 @@ class OBCameraNode {
   bool has_first_color_frame_ = false;
   // rotation degree
   std::map<stream_index_pair, int> image_rotation_;
-  std::string time_domain_ = "device";
+  std::string time_domain_ = "global";
+  std::string exposure_range_mode_="default";
+  bool enable_sync_host_time_ = true;
+  ros::Timer sync_host_time_timer_;
+
+  int disparity_range_mode_ = -1;
+  int disparity_search_offset_ = -1;
+  bool disparity_offset_config_ = false;
+  int offset_index0_ = -1;
+  int offset_index1_ = -1;
+
+  // interleave AE
+  std::string interleave_ae_mode_ = "hdr";  // hdr or laser
+  bool interleave_frame_enable_ = false;
+  bool interleave_skip_enable_ = false;
+  int interleave_skip_index_ = 1;
+
+  // hdr and laser interleave params
+  int hdr_index1_laser_control_ = 1;
+  int hdr_index1_depth_exposure_ = 1;
+  int hdr_index1_depth_gain_ = 16;
+  int hdr_index1_ir_brightness_ = 20;
+  int hdr_index1_ir_ae_max_exposure_ = 2000;
+  int hdr_index0_laser_control_ = 1;
+  int hdr_index0_depth_exposure_ = 7500;
+  int hdr_index0_depth_gain_ = 16;
+  int hdr_index0_ir_brightness_ = 60;
+  int hdr_index0_ir_ae_max_exposure_ = 10000;
+
+  int laser_index1_laser_control_ = 0;
+  int laser_index1_depth_exposure_ = 3000;
+  int laser_index1_depth_gain_ = 16;
+  int laser_index1_ir_brightness_ = 60;
+  int laser_index1_ir_ae_max_exposure_ = 7000;
+  int laser_index0_laser_control_ = 1;
+  int laser_index0_depth_exposure_ = 3000;
+  int laser_index0_depth_gain_ = 16;
+  int laser_index0_ir_brightness_ = 60;
+  int laser_index0_ir_ae_max_exposure_ = 17000;
+
+  std::string frame_aggregate_mode_;
 };
 
 }  // namespace orbbec_camera

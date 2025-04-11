@@ -1,13 +1,11 @@
 # OrbbecSDK ROS v2
 
-[![stable](http://badges.github.io/stability-badges/dist/stable.svg)](http://github.com/badges/stability-badges) ![version](https://img.shields.io/badge/version-2.0.9-green)
-
 > [!IMPORTANT]
 >
-> Welcome to the OrbbecSDK ROS Wrapper v2. Before you begin using this version of ROS Wrapper, it's crucial to check the following device support list to verify the compatibility.
+> Welcome to the OrbbecSDK ROS Wrapper v2. Before you begin using this version of ROS Wrapper, it's crucial to check the following [device support list](#supported-devices) to verify the compatibility.
 
 OrbbecSDK ROS Wrapper provides seamless integration of Orbbec cameras with ROS environment. It supports ROS Kinetic, Melodic, and Noetic distributions.
-With a major update in October 2024, we release the OrbbecSDK ROS2 Wrapper v2 connected to the open source OrbbecSDK v2 with enhanced flexibility and extensibility. This update ensures compatibility with all Orbbec USB products adhering to UVC standard. However, it no longer supports Orbbec's traditional OpenNI protocol devices. We strongly encourage you to use the v2-main branch if your device is supported.
+With a major update in October 2024, we release the [OrbbecSDK ROS1 Wrapper v2](https://github.com/orbbec/OrbbecSDK_ROS1/tree/v2-main) connected to the open source [OrbbecSDK v2](https://github.com/orbbec/OrbbecSDK_v2/releases) with enhanced flexibility and extensibility. This update ensures compatibility with all Orbbec USB products adhering to UVC standard. However, it no longer supports Orbbec's traditional OpenNI protocol devices. We strongly encourage you to use the v2-main branch if your device is supported.
 
 Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
 
@@ -114,8 +112,6 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
   </tbody>
 </table>
 
-
-
    **Note**: If you do not find your device, please contact our FAE or sales representative for help.
 
    **Definition**:
@@ -169,6 +165,7 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
   ```bash
   # Assuming you have sourced the ROS environment, same below
   sudo apt install libgflags-dev ros-$ROS_DISTRO-image-geometry ros-$ROS_DISTRO-camera-info-manager \
+  ros-${ROS_DISTRO}-image-transport-plugins ros-${ROS_DISTRO}-compressed-image-transport \
   ros-$ROS_DISTRO-image-transport ros-$ROS_DISTRO-image-publisher libgoogle-glog-dev libusb-1.0-0-dev libeigen3-dev \
   ros-$ROS_DISTRO-diagnostic-updater ros-$ROS_DISTRO-diagnostic-msgs \
   libdw-dev
@@ -272,6 +269,18 @@ rosservice call /camera/get_left_ir_exposure "{}"
 rosservice call /camera/get_color_exposure "{}"
 ```
 
+Set auto exposure ROI:
+
+```bash
+#In data_param, the first value is the Left setting, the second value is the Right setting, the third value is the Top setting, and the fourth value is the Bottom setting.
+
+#Set color ROI
+rosservice call /camera/set_color_ae_roi '{data_param:[0,1279,0,719]}'
+
+#Set depth ROI
+rosservice call /camera/set_depth_ae_roi '{data_param:[0,847,0,479]}'
+```
+
 Set/get gain:
 
 ```bash
@@ -318,6 +327,7 @@ The following launch parameters are available:
 
 - `connection_delay`: The delay time in milliseconds for reopening the device. Some devices require
   a longer time to initialize, and reopening the device immediately can cause firmware crashes when hot-plugging.
+- `uvc_backend`:Global UVC Backend select on Linux,optional values: libuvc, v4l2.
 - `enable_point_cloud`: Enables the point cloud.
 - `enable_colored_point_cloud`: Enables the RGB point cloud.
 - `color_width`, `color_height`, `color_fps`: The resolution and frame rate of the color stream.
@@ -330,10 +340,12 @@ The following launch parameters are available:
 - `enable_right_ir`: Enables the right IR camera.
 - `depth_registration`: Enables hardware alignment of the depth frame to the color frame. This field is required
   when `enable_colored_point_cloud` is set to `true`.
+- `color_ae_roi_[left|right|top|bottom]`,`depth_ae_roi_[left|right|top|bottom]`:Set Color and Depth auto exposure ROI.
 - `log_level` for OrbbecSDK controls console log verbosity, with levels `none`, `info`, `debug`, `warn`, `fatal`. Logs
   save in `~/.ros/Log`. For file logging, adjust `<FileLogLevel>` in `config/OrbbecSDKConfig_v1.0.xml`.
 - `ordered_pc`: Whether the point cloud should be organized in an ordered grid (`true`) or as an unordered set of
   points (`false`).
+- `preset_firmware_path` : The input parameter is the perset firmware path. If multiple paths are input, each path needs to be separated by `,`and a maximum of 3 firmware paths can be input
 - `device_preset`: The default value is `Default`. Only the G330 series is supported. For more information, refer to
   the [G330 documentation](https://www.orbbec.com/docs/g330-use-depth-presets/). Please refer to the table below to set
   the `device_preset` value based on your use case. The value should be one of the preset names
@@ -357,8 +369,6 @@ The following launch parameters are available:
 - `enable_hole_filling_filter`: This filter fills all holes in the depth map using the specified mode.
 - `depth_precision` : The depth precision, should be like `1mm` format. The default value is `1mm`.
 - `enable_laser` : Whether to enable the laser. The default value is `true`.
-- `laser_on_off_mode`: Laser on/off alternate mode, 0: off, 1: on-off alternate, 2: off-on alternate. The default value
-  is `0`.
 - `retry_on_usb3_detection_failure`: If the camera is connected to a USB 2.0 port and is not detected, the system will
   attempt to reset the camera up to three times. This setting aims to prevent USB 3.0 devices from being incorrectly
   recognized as USB 2.0.
@@ -368,6 +378,11 @@ The following launch parameters are available:
   If set to `true`, the camera will send heartbeat messages and generate firmware logs.
 - `enable_hardware_reset`: This option enables the hardware reset function. By default, it is set to `false`.
   If set to `true`, the camera will reboot upon its first connection.
+- `preset_firmware_path`: Burn customized preset firmware by passing in the customized preset firmware path
+
+* `color_ae_roi_[left|right|top|bottom]`,`depth_ae_roi_[left|right|top|bottom]`:Set Color and Depth auto exposure ROI.
+* `color_ae_roi_[left|right|top|bottom]`,`depth_ae_roi_[left|right|top|bottom]`:Set Color and Depth auto exposure ROI.
+* `color_ae_roi_[left|right|top|bottom]`,`depth_ae_roi_[left|right|top|bottom]`:Set Color and Depth auto exposure ROI.
 
 **IMPORTANT**: *Please carefully read the instructions regarding software filtering settings at [this link](https://www.orbbec.com/docs/g330-use-depth-post-processing-blocks/). If you are uncertain, do not modify these settings.*
 
@@ -501,33 +516,35 @@ cd ~/ros_ws/src/OrbbecSDK_ROS1
 bash .make_deb.sh
 ```
 
-## Launch files
-
-| product serials | Firmware Version |       launch file       |
-| :-------------: | :--------------: | :----------------------: |
-|     Astra2     |      2.8.20      |      astra2.launch      |
-|   Femto mega   |   1.1.7/1.2.7   |    femto_mega.launch    |
-|   Femto bolt   |   1.0.6/1.0.9   |    femto_bolt.launch    |
-|    Ggemini2    |  1.4.60 /1.4.76  |      gemini2.launch      |
-|    Gemini2L    |      1.4.32      |     gemini2L.launch     |
-|   Gemini 335   |      1.2.20      | gemini_330_series.launch |
-|   Gemini 335L   |      1.2.20      | gemini_330_series.launch |
-|  Gemini 335Lg  |      1.3.46      | gemini_330_series.launch |
-|   Gemini 336   |      1.2.20      | gemini_330_series.launch |
-|   Gemini 336L   |      1.2.20      | gemini_330_series.launch |
-
-**All launch files are essentially similar, with the primary difference being the default values of the parameters set for different models
-within the same series. Differences in USB standards, such as USB 2.0 versus USB 3.0, may require adjustments to these parameters. If you
-encounter a startup failure, please carefully review the specification manual. Pay special attention to the resolution settings in the launch
-file, as well as other parameters, to ensure compatibility and optimal performance.**
-
 ## Use Nodelet
 
 For users who need to use nodelet, please refer to `gemini2_nodelet.launch`
 
-## Supported hardware products
+## Supported Devices
 
-Please refer to the OrbbecSDK supported products: [Product Support](https://github.com/orbbec/OrbbecSDK?tab=readme-ov-file#product-support)
+Currently, the following devices are supported by the OrbbecSDK ROS2 Wrapper v2-main branch.  More devices support will be added in the near future. If you can not find your device in the table below, try the [main](https://github.com/orbbec/OrbbecSDK_ROS1/tree/main)  branch.
+
+For optimal performance, we strongly recommend updating to the latest firmware version. This ensures that you benefit from the most recent enhancements and bug fixes.
+
+The following devices are supported by the OrbbecSDK ROS2 Wrapper.
+
+| Product List | Minimal Firmware Version | **Launch File**    |
+| :----------- | :----------------------- | :----------------------- |
+| Gemini 330   | 1.2.20                   | gemini_330_series.launch |
+| Gemini 330L  | 1.2.20                   | gemini_330_series.launch |
+| Gemini 335   | 1.2.20                   | gemini_330_series.launch |
+| Gemini 335L  | 1.2.20                   | gemini_330_series.launch |
+| Gemini 335Lg | 1.3.46                   | gemini_330_series.launch |
+| Gemini 336   | 1.2.20                   | gemini_330_series.launch |
+| Gemini 336L  | 1.2.20                   | gemini_330_series.launch |
+| Femto Bolt   | 1.1.2                    | femto_bolt.launch        |
+| Femto Mega   | 1.3.0                    | femto_mega.launch        |
+| Astra 2      | 2.8.20                   | astra2.launch            |
+| Gemini 2 L   | 1.4.53                   | gemini2L.launch          |
+| Gemini 2     | 1.4.92                   | gemini2.launch           |
+
+All launch files are essentially similar, with the primary difference being the default values of the parameters set
+for different models within the same series. Differences in USB standards, such as USB 2.0 versus USB 3.0, may require adjustments to these parameters. If you encounter a startup failure, please carefully review the specification manual. Pay special attention to the resolution settings in the launch file, as well as other parameters, to ensure compatibility and optimal performance.
 
 ## Frequently Asked Questions
 

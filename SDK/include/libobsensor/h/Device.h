@@ -242,6 +242,19 @@ OB_EXPORT void ob_device_update_firmware_from_data(ob_device *device, const uint
                                                    bool async, void *user_data, ob_error **error);
 
 /**
+ * @brief Update the device optional depth presets.
+ *
+ * @param[in] device The device object.
+ * @param[in] file_path_list A list(2D array) of preset file paths, each up to OB_PATH_MAX characters.
+ * @param[in] path_count The number of the preset file paths.
+ * @param[in] callback The preset upgrade progress callback.
+ * @param[in] user_data User-defined data that will be returned in the callback.
+ * @param[out] error Pointer to an error object that will be set if an error occurs.
+ */
+OB_EXPORT void ob_device_update_optional_depth_presets(ob_device *device, const char file_path_list[][OB_PATH_MAX], uint8_t path_count,
+                                                       ob_device_fw_update_callback callback, void *user_data, ob_error **error);
+
+/**
  * @brief Device reboot
  * @attention The device will be disconnected and reconnected. After the device is disconnected, the interface access to the device handle may be abnormal.
  * Please use the ob_delete_device interface to delete the handle directly. After the device is reconnected, it can be obtained again.
@@ -375,7 +388,7 @@ OB_EXPORT const char *ob_device_info_get_firmware_version(const ob_device_info *
  *
  * @param[in] info Device Information
  * @param[out] error Pointer to an error object that will be set if an error occurs.
- * @return const char* The connection type，currently supports："USB", "USB1.0", "USB1.1", "USB2.0", "USB2.1", "USB3.0", "USB3.1", "USB3.2", "Ethernet"
+ * @return const char* The connection type, currently supports: "USB", "USB1.0", "USB1.1", "USB2.0", "USB2.1", "USB3.0", "USB3.1", "USB3.2", "Ethernet"
  */
 OB_EXPORT const char *ob_device_info_get_connection_type(const ob_device_info *info, ob_error **error);
 
@@ -386,7 +399,7 @@ OB_EXPORT const char *ob_device_info_get_connection_type(const ob_device_info *i
  *
  * @param info Device Information
  * @param error Pointer to an error object that will be set if an error occurs.
- * @return const char* The IP address，such as "192.168.1.10"
+ * @return const char* The IP address, such as "192.168.1.10"
  */
 OB_EXPORT const char *ob_device_info_get_ip_address(const ob_device_info *info, ob_error **error);
 
@@ -520,7 +533,7 @@ OB_EXPORT const char *ob_device_list_get_device_serial_number(const ob_device_li
  * @param[in] list Device list object
  * @param[in] index Device index
  * @param[out] error Pointer to an error object that will be set if an error occurs.
- * @return const char* returns the device connection type，currently supports："USB", "USB1.0", "USB1.1", "USB2.0", "USB2.1", "USB3.0", "USB3.1", "USB3.2",
+ * @return const char* returns the device connection type, currently supports: "USB", "USB1.0", "USB1.1", "USB2.0", "USB2.1", "USB3.0", "USB3.1", "USB3.2",
  * "Ethernet"
  */
 OB_EXPORT const char *ob_device_list_get_device_connection_type(const ob_device_list *list, uint32_t index, ob_error **error);
@@ -533,9 +546,21 @@ OB_EXPORT const char *ob_device_list_get_device_connection_type(const ob_device_
  * @param list Device list object
  * @param index Device index
  * @param error Pointer to an error object that will be set if an error occurs.
- * @return const char* returns the device ip address，such as "192.168.1.10"
+ * @return const char* returns the device ip address, such as "192.168.1.10"
  */
 OB_EXPORT const char *ob_device_list_get_device_ip_address(const ob_device_list *list, uint32_t index, ob_error **error);
+
+/**
+ * @brief Get device local mac address
+ *
+ * @attention Only valid for network devices, otherwise it will return "0:0:0:0:0:0".
+ *
+ * @param list Device list object
+ * @param index Device index
+ * @param error Pointer to an error object that will be set if an error occurs.
+ * @return const char* returns the device mac address
+ */
+OB_EXPORT const char *ob_device_list_get_device_local_mac(const ob_device_list *list, uint32_t index, ob_error **error);
 
 /**
  * @brief Create a device.
@@ -567,7 +592,7 @@ OB_EXPORT ob_device *ob_device_list_get_device_by_serial_number(const ob_device_
  * @brief On Linux platform, for usb device, the uid of the device is composed of bus-port-dev, for example 1-1.2-1. But the SDK will remove the dev number and
  * only keep the bus-port as the uid to create the device, for example 1-1.2, so that we can create a device connected to the specified USB port. Similarly,
  * users can also directly pass in bus-port as uid to create device.
- * @brief For GMSL device，the uid is GMSL port with “gmsl2-” prefix, for example gmsl2-1.
+ * @brief For GMSL device, the uid is GMSL port with "gmsl2-" prefix, for example gmsl2-1.
  *
  * @attention If the device has already been acquired and created elsewhere, repeated acquisitions will return an error.
  *

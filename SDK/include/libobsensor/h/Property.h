@@ -1,4 +1,4 @@
-﻿// Copyright (c) Orbbec Inc. All Rights Reserved.
+// Copyright (c) Orbbec Inc. All Rights Reserved.
 // Licensed under the MIT License.
 
 /**
@@ -306,7 +306,7 @@ typedef enum {
     OB_PROP_DEPTH_ROTATE_INT = 118,
 
     /**
-     * @brief Get hardware laser power actual level which real state of laser element. OB_PROP_LASER_POWER_LEVEL_CONTROL_INT99）will effect this command
+     * @brief Get hardware laser power actual level which real state of laser element. OB_PROP_LASER_POWER_LEVEL_CONTROL_INT99 will effect this command
      * which it setting and changed the hardware laser energy level.
      */
     OB_PROP_LASER_POWER_ACTUAL_LEVEL_INT = 119,
@@ -441,6 +441,29 @@ typedef enum {
     OB_PROP_DISP_SEARCH_RANGE_MODE_INT = 191,
 
     /**
+     * @brief Laser high temperature protection
+     */
+    OB_PROP_LASER_HIGH_TEMPERATURE_PROTECT_BOOL = 193,
+
+    /**
+     * @brief low exposure laser control
+     *
+     * @brief Currently using for DabaiA device,if the exposure value is lower than a certain threshold, the laser is turned off;
+     * if it exceeds another threshold, the laser is turned on again.
+     */
+    OB_PROP_LOW_EXPOSURE_LASER_CONTROL_BOOL = 194,
+
+    /**
+     * @brief check pps sync in signal
+     */
+    OB_PROP_CHECK_PPS_SYNC_IN_SIGNAL_BOOL = 195,
+
+    /**
+     * @brief Disparity search range offset, range: [0, 127]
+     */
+    OB_PROP_DISP_SEARCH_OFFSET_INT = 196,
+
+    /**
      * @brief Repower device (cut off power and power on again)
      *
      * @brief Currently using for GMSL device, cut off power and power on again by GMSL host driver.
@@ -460,7 +483,32 @@ typedef enum {
      * @brief laser pattern sync with delay(us)
      */
     OB_PROP_FRAME_INTERLEAVE_LASER_PATTERN_SYNC_DELAY_INT = 206,
+    /**
+     * @brief Get the health check result from device,range is [0.0f,1.5f]
+     */
+    OB_PROP_ON_CHIP_CALIBRATION_HEALTH_CHECK_FLOAT = 209,
 
+    /**
+     * @brief Enable or disable on-chip calibration
+     */
+    OB_PROP_ON_CHIP_CALIBRATION_ENABLE_BOOL = 210,
+
+    /**
+     * @brief hardware noise remove filter switch
+     */
+    OB_PROP_HW_NOISE_REMOVE_FILTER_ENABLE_BOOL = 211,
+    /**
+     * @brief hardware noise remove filter threshold ,range [0.0 - 1.0]
+     */
+    OB_PROP_HW_NOISE_REMOVE_FILTER_THRESHOLD_FLOAT = 212,
+    /**
+     * @brief soft trigger auto capture enable, use in OB_MULTI_DEVICE_SYNC_MODE_SOFTWARE_TRIGGERING mode
+     */
+    OB_DEVICE_AUTO_CAPTURE_ENABLE_BOOL = 216,
+    /**
+     * @brief soft trigger auto capture interval time, use in OB_MULTI_DEVICE_SYNC_MODE_SOFTWARE_TRIGGERING mode
+     */
+    OB_DEVICE_AUTO_CAPTURE_INTERVAL_TIME_INT = 217,
     /**
      * @brief Baseline calibration parameters
      */
@@ -513,7 +561,7 @@ typedef enum {
 
     /**
      * @brief Device network static ip config record
-     * @brief Using for get last static ip config，witch is record in device flash when user set static ip config
+     * @brief Using for get last static ip config, witch is record in device flash when user set static ip config
      *
      * @attention read only
      */
@@ -544,6 +592,11 @@ typedef enum {
      * @brief ASIC serial number
      */
     OB_STRUCT_ASIC_SERIAL_NUMBER = 1063,
+
+    /**
+     * @brief Disparity offset interleaving
+     */
+    OB_STRUCT_DISP_OFFSET_CONFIG = 1064,
 
     /**
      * @brief Color camera auto exposure
@@ -704,6 +757,10 @@ typedef enum {
      * @brief Color camera FOCUS
      */
     OB_PROP_COLOR_FOCUS_INT = 2038,
+    /**
+     * @brief ir rectify status,true: ir rectify, false: no rectify
+     */
+    OB_PROP_IR_RECTIFY_BOOL = 2040,
 
     /**
      * @brief Depth camera priority
@@ -745,6 +802,16 @@ typedef enum {
      * @brief Right IR frame data unpacking function switch (each current will be turned on by default, support RLE/Y10/Y11/Y12/Y14 format)
      */
     OB_PROP_SDK_IR_RIGHT_FRAME_UNPACK_BOOL = 3012,
+
+    /**
+     * @brief Read the current network bandwidth type of the network device, whether it is Gigabit Ethernet or Fast Ethernet, such as G335LE.
+     */
+    OB_PROP_NETWORK_BANDWIDTH_TYPE_INT = 3027,
+
+    /**
+     * @brief Switch device performance mode, currently available in Adaptive Mode and High Performance Mode, such as G335LE.
+     */
+    OB_PROP_DEVICE_PERFORMANCE_MODE_INT = 3028,
 
     /**
      * @brief Calibration JSON file read from device (Femto Mega, read only)

@@ -131,10 +131,23 @@ void OBCameraNodeDriver::init() {
   ip_address_ = nh_private_.param<std::string>("ip_address", "");
   port_ = nh_private_.param<int>("port", 0);
   enable_hardware_reset_ = nh_private_.param<bool>("enable_hardware_reset", false);
+  uvc_backend_ = nh_private_.param<std::string>("uvc_backend", "libuvc");
+  preset_firmware_path_ = nh_private_.param<std::string>("preset_firmware_path", "");
   reboot_service_srv_ = nh_.advertiseService<std_srvs::EmptyRequest, std_srvs::EmptyResponse>(
-      "reboot_device", [this](std_srvs::EmptyRequest &request, std_srvs::EmptyResponse &response) {
+      "/" + g_camera_name + "/reboot_device",
+      [this](std_srvs::EmptyRequest &request, std_srvs::EmptyResponse &response) {
         return rebootDeviceServiceCallback(request, response);
       });
+  if (uvc_backend_ == "libuvc") {
+    ctx_->setUvcBackendType(OB_UVC_BACKEND_TYPE_LIBUVC);
+    ROS_INFO_STREAM("setUvcBackendType:" << uvc_backend_);
+  } else if (uvc_backend_ == "v4l2") {
+    ctx_->setUvcBackendType(OB_UVC_BACKEND_TYPE_V4L2);
+    ROS_INFO_STREAM("setUvcBackendType:" << uvc_backend_);
+  } else {
+    ctx_->setUvcBackendType(OB_UVC_BACKEND_TYPE_LIBUVC);
+    ROS_INFO_STREAM("setUvcBackendType:" << uvc_backend_);
+  }
   ctx_->enableNetDeviceEnumeration(enumerate_net_device_);
   check_connection_timer_ =
       nh_.createWallTimer(ros::WallDuration(1.0),
@@ -150,10 +163,11 @@ void OBCameraNodeDriver::init() {
 
 std::shared_ptr<ob::Device> OBCameraNodeDriver::selectDevice(
     const std::shared_ptr<ob::DeviceList> &list) {
-
-
   std::shared_ptr<ob::Device> device = nullptr;
-  if (!serial_number_.empty()) {
+  if (!ip_address_.empty() && port_ != 0) {
+    ROS_INFO_STREAM("Connecting to device with net ip: " << ip_address_);
+    device = selectDeviceByNetIP(list, ip_address_);
+  } else if (!serial_number_.empty()) {
     ROS_INFO_STREAM("Connecting to device with serial number: " << serial_number_);
     device = selectDeviceBySerialNumber(list, serial_number_);
   } else if (!usb_port_.empty()) {
@@ -225,6 +239,42 @@ std::shared_ptr<ob::Device> OBCameraNodeDriver::selectDeviceByUSBPort(
   return nullptr;
 }
 
+std::shared_ptr<ob::Device> OBCameraNodeDriver::selectDeviceByNetIP(
+    const std::shared_ptr<ob::DeviceList> &list, const std::string &net_ip) {
+    ROS_INFO_STREAM("Before lock: Select device net ip: " << net_ip);
+    std::lock_guard<decltype(device_lock_)> lock(device_lock_);
+    ROS_INFO_STREAM("After lock: Select device net ip: " << net_ip);
+    std::shared_ptr<ob::Device> device = nullptr;
+    for (size_t i = 0; i < list->getCount(); i++) {
+    try {
+      device = list->getDevice(i);
+      auto device_info = device->getDeviceInfo();
+      if(std::string(device_info->getConnectionType())!="Ethernet"){
+        continue;
+      }
+      if (device_info->getIpAddress() == nullptr) {
+        continue;
+      }
+      ROS_INFO_STREAM("FindDeviceByNetIP device net ip " << device_info->getIpAddress());
+      if (std::string(device_info->getIpAddress()) == net_ip) {
+        ROS_INFO_STREAM( "getDeviceByNetIP device net ip " << net_ip << " done");
+        return list->getDevice(i);
+      }
+    } catch (ob::Error &e) {
+      ROS_INFO_STREAM( "Failed to get device info " << e.getMessage());
+      continue;
+    } catch (std::exception &e) {
+      ROS_INFO_STREAM( "Failed to get device info " << e.what());
+      continue;
+    } catch (...) {
+      ROS_INFO_STREAM( "Failed to get device info");
+      continue;
+    }
+  }
+
+  return nullptr;
+}
+
 void OBCameraNodeDriver::initializeDevice(const std::shared_ptr<ob::Device> &device) {
   std::lock_guard<decltype(device_lock_)> lock(device_lock_);
   if (device_) {
@@ -240,6 +290,7 @@ void OBCameraNodeDriver::initializeDevice(const std::shared_ptr<ob::Device> &dev
     return;
   }
   device_ = device;
+  updatePresetFirmware(preset_firmware_path_);
   device_info_ = device_->getDeviceInfo();
   device_uid_ = device_info_->uid();
   CHECK_NOTNULL(device_.get());
@@ -254,9 +305,9 @@ void OBCameraNodeDriver::initializeDevice(const std::shared_ptr<ob::Device> &dev
     ob_camera_node_.reset();
     return;
   }
-  if (!isOpenNIDevice(device_info_->pid())) {
-    ctx_->enableDeviceClockSync(1800000);
-  }
+  // if (!isOpenNIDevice(device_info_->pid())) {
+  //   ctx_->enableDeviceClockSync(1800000);
+  // }
   CHECK_NOTNULL(device_info_.get());
   std::string connection_type = device_info_->connectionType();
   ROS_INFO_STREAM("Device " << device_info_->name() << " connected");
@@ -391,7 +442,7 @@ OBLogSeverity OBCameraNodeDriver::obLogSeverityFromString(const std::string &log
 void OBCameraNodeDriver::queryDevice() {
   while (is_alive_ && ros::ok() && !device_connected_) {
     ROS_INFO_STREAM("queryDevice: first query device");
-    if (enumerate_net_device_ && !ip_address_.empty() && port_ != 0) {
+    if (!enumerate_net_device_ && !ip_address_.empty() && port_ != 0) {
       ROS_INFO_STREAM("queryDevice: connect to net device " << ip_address_ << ":" << port_);
       connectNetDevice(ip_address_, port_);
     } else {
@@ -464,5 +515,106 @@ bool OBCameraNodeDriver::rebootDeviceServiceCallback(std_srvs::EmptyRequest &req
   device_connected_ = false;
   device_ = nullptr;
   return true;
+}
+void OBCameraNodeDriver::updatePresetFirmware(std::string path) {
+  if (path.empty()) {
+    return;
+  } else {
+    std::stringstream ss(path);
+    std::string path_segment;
+    std::vector<std::string> paths;
+    OBFwUpdateState updateState = STAT_START;
+    bool firstCall = true;
+
+    while (std::getline(ss, path_segment, ',')) {
+      paths.push_back(path_segment);
+    }
+    uint8_t index = 0;
+    uint8_t count = static_cast<uint8_t>(paths.size());
+    char(*filePaths)[OB_PATH_MAX] = new char[count][OB_PATH_MAX];
+    ROS_INFO_STREAM("paths.cout : " << (uint32_t)count);
+    for (const auto &p : paths) {
+      strcpy(filePaths[index], p.c_str());
+      ROS_INFO_STREAM("path: " << (uint32_t)index << ":" << filePaths[index]);
+      index++;
+    }
+    ROS_INFO_STREAM("Start to update optional depth preset, please wait a moment...");
+    try {
+      device_->updateOptionalDepthPresets(
+          filePaths, count,
+          [this, &updateState, &firstCall](OBFwUpdateState state, const char *message,
+                                           uint8_t percent) {
+            updateState = state;
+            presetUpdateCallback(firstCall, state, message, percent);
+            // firstCall = false;
+          });
+
+      delete[] filePaths;
+      filePaths = nullptr;
+      if (updateState == STAT_DONE || updateState == STAT_DONE_WITH_DUPLICATES) {
+        ROS_INFO_STREAM("After updating the preset: ");
+        auto presetList = device_->getAvailablePresetList();
+        ROS_INFO_STREAM("Preset count: " << presetList->getCount());
+        for (uint32_t i = 0; i < presetList->getCount(); ++i) {
+          ROS_INFO_STREAM("  - " << presetList->getName(i));
+        }
+        ROS_INFO_STREAM("Current preset: " << device_->getCurrentPresetName());
+        std::string key = "PresetVer";
+        if (device_->isExtensionInfoExist(key)) {
+          std::string value = device_->getExtensionInfo(key);
+          ROS_INFO_STREAM("Preset version: " << value);
+        } else {
+          ROS_INFO_STREAM("PresetVer: ");
+        }
+      }
+    } catch (ob::Error &e) {
+      ROS_ERROR_STREAM("Failed to update Preset Firmware " << e.getMessage());
+    } catch (std::exception &e) {
+      ROS_ERROR_STREAM("Failed to update Preset Firmware " << e.what());
+    } catch (...) {
+      ROS_ERROR_STREAM("Failed to update Preset Firmware");
+    }
+  }
+}
+void OBCameraNodeDriver::presetUpdateCallback(bool firstCall, OBFwUpdateState state,
+                                              const char *message, uint8_t percent) {
+  if (!firstCall) {
+    std::cout << "\033[3F";
+  }
+
+  std::cout << "\033[K";
+  std::cout << "Progress: " << static_cast<uint32_t>(percent) << "%" << std::endl;
+
+  std::cout << "\033[K";
+  std::cout << "Status  : ";
+  switch (state) {
+    case STAT_VERIFY_SUCCESS:
+      std::cout << "Image file verification success" << std::endl;
+      break;
+    case STAT_FILE_TRANSFER:
+      std::cout << "File transfer in progress" << std::endl;
+      break;
+    case STAT_DONE:
+      std::cout << "Update completed" << std::endl;
+      break;
+    case STAT_DONE_WITH_DUPLICATES:
+      std::cout << "Update completed, duplicated presets have been ignored" << std::endl;
+      break;
+    case STAT_IN_PROGRESS:
+      std::cout << "Update in progress" << std::endl;
+      break;
+    case STAT_START:
+      std::cout << "Starting the update" << std::endl;
+      break;
+    case STAT_VERIFY_IMAGE:
+      std::cout << "Verifying image file" << std::endl;
+      break;
+    default:
+      std::cout << "Unknown status or error" << std::endl;
+      break;
+  }
+
+  std::cout << "\033[K";
+  std::cout << "Message : " << message << std::endl << std::flush;
 }
 }  // namespace orbbec_camera
