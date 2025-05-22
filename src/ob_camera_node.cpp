@@ -139,14 +139,16 @@ void OBCameraNode::getParameters() {
     fps_[stream_index] = nh_private_.param<int>(param_name, IMAGE_FPS);
     param_name = "enable_" + stream_name_[stream_index];
     enable_stream_[stream_index] = nh_private_.param<bool>(param_name, false);
-    param_name = "flip_" + stream_name_[stream_index];
-    flip_images_[stream_index] = nh_private_.param<bool>(param_name, false);
+    param_name = stream_name_[stream_index] + "_flip";
+    image_flip_[stream_index] = nh_private_.param<bool>(param_name, false);
+    param_name = stream_name_[stream_index] + "_mirror";
+    image_mirror_[stream_index] = nh_private_.param<bool>(param_name, false);
     param_name = stream_name_[stream_index] + "_format";
     format_str_[stream_index] =
         nh_private_.param<std::string>(param_name, format_str_[stream_index]);
     format_[stream_index] = OBFormatFromString(format_str_[stream_index]);
     param_name = stream_name_[stream_index] + "_rotation";
-    image_rotation_[stream_index] = nh_private_.param<int>(param_name, 0);
+    image_rotation_[stream_index] = nh_private_.param<int>(param_name, -1);
   }
   depth_aligned_frame_id_[DEPTH] = optical_frame_id_[COLOR];
 
@@ -161,7 +163,7 @@ void OBCameraNode::getParameters() {
   enable_pipeline_ = nh_private_.param<bool>("enable_pipeline", true);
   enable_point_cloud_ = nh_private_.param<bool>("enable_point_cloud", true);
   enable_colored_point_cloud_ = nh_private_.param<bool>("enable_colored_point_cloud", false);
-  enable_hardware_d2d_ = nh_private_.param<bool>("enable_hardware_d2d", true);
+  disaparity_to_depth_mode_ = nh_private_.param<std::string>("disaparity_to_depth_mode", "HW");
   depth_work_mode_ = nh_private_.param<std::string>("depth_work_mode", "");
   enable_soft_filter_ = nh_private_.param<bool>("enable_soft_filter", true);
   enable_color_auto_exposure_ = nh_private_.param<bool>("enable_color_auto_exposure", true);
@@ -171,6 +173,7 @@ void OBCameraNode::getParameters() {
       nh_private_.param<bool>("enable_color_auto_white_balance", true);
   enable_color_backlight_compenstation_ =
       nh_private_.param<bool>("enable_color_backlight_compenstation", false);
+  color_powerline_freq_ = nh_private_.param<std::string>("color_powerline_freq", "");
   enable_color_decimation_filter_ =
       nh_private_.param<bool>("enable_color_decimation_filter", false);
   color_ae_roi_left_ = nh_private_.param<int>("color_ae_roi_left", -1);
@@ -212,10 +215,13 @@ void OBCameraNode::getParameters() {
   trigger2image_delay_us_ = nh_private_.param<int>("trigger2image_delay_us", 0);
   trigger_out_delay_us_ = nh_private_.param<int>("trigger_out_delay_us", 0);
   trigger_out_enabled_ = nh_private_.param<bool>("trigger_out_enabled", false);
+  frames_per_trigger_ = nh_private_.param<int>("frames_per_trigger", 2);
+  software_trigger_period_ = nh_private_.param<int>("software_trigger_period", 33);
+  enable_ptp_config_ = nh_private_.param<bool>("enable_ptp_config", false);
   depth_precision_str_ = nh_private_.param<std::string>("depth_precision", "");
-  if (!depth_precision_str_.empty()) {
-    depth_precision_level_ = DEPTH_PRECISION_STR2ENUM.at(depth_precision_str_);
-  }
+  //   if (!depth_precision_str_.empty()) {
+  //     depth_precision_level_ = DEPTH_PRECISION_STR2ENUM.at(depth_precision_str_);
+  //   }
   if (enable_colored_point_cloud_ || enable_d2c_viewer_) {
     depth_registration_ = true;
   }
@@ -251,6 +257,7 @@ void OBCameraNode::getParameters() {
   enable_decimation_filter_ = nh_private_.param<bool>("enable_decimation_filter", false);
   enable_hdr_merge_ = nh_private_.param<bool>("enable_hdr_merge", false);
   enable_sequenced_filter_ = nh_private_.param<bool>("enable_sequenced_filter", false);
+  enable_disaparity_to_depth_ = nh_private_.param<bool>("enable_disaparity_to_depth", true);
   enable_threshold_filter_ = nh_private_.param<bool>("enable_threshold_filter", false);
   enable_hardware_noise_removal_filter_ =
       nh_private_.param<bool>("enable_hardware_noise_removal_filter", true);
@@ -281,6 +288,10 @@ void OBCameraNode::getParameters() {
   diagnostics_frequency_ = nh_private_.param<double>("diagnostics_frequency", 1.0);
   enable_laser_ = nh_private_.param<bool>("enable_laser", true);
   align_mode_ = nh_private_.param<std::string>("align_mode", "HW");
+  std::string align_target_stream_str_;
+  align_target_stream_str_ = nh_private_.param<std::string>("align_target_stream", "COLOR");
+  align_target_stream_ = obStreamTypeFromString(align_target_stream_str_);
+  ROS_INFO_STREAM("align_target_stream_: " << align_target_stream_);
   enable_color_hdr_ = nh_private_.param<bool>("enable_color_hdr", false);
   enable_depth_scale_ = nh_private_.param<bool>("enable_depth_scale", true);
   retry_on_usb3_detection_failure_ =
@@ -1588,7 +1599,7 @@ void OBCameraNode::onNewFrameCallback(std::shared_ptr<ob::Frame> frame,
   image_msg->step = width * unit_step_size_[stream_index];
   image_msg->header.frame_id = frame_id;
   image_msg->header.seq = seq++;
-  if (!flip_images_[stream_index]) {
+  if (!image_flip_[stream_index]) {
     image_publisher.publish(image_msg);
   } else {
     cv::Mat flipped_image;

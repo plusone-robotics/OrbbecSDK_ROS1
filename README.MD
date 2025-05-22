@@ -7,6 +7,8 @@
 OrbbecSDK ROS Wrapper provides seamless integration of Orbbec cameras with ROS environment. It supports ROS Kinetic, Melodic, and Noetic distributions.
 With a major update in October 2024, we release the [OrbbecSDK ROS1 Wrapper v2](https://github.com/orbbec/OrbbecSDK_ROS1/tree/v2-main) connected to the open source [OrbbecSDK v2](https://github.com/orbbec/OrbbecSDK_v2/releases) with enhanced flexibility and extensibility. This update ensures compatibility with all Orbbec USB products adhering to UVC standard. However, it no longer supports Orbbec's traditional OpenNI protocol devices. We strongly encourage you to use the v2-main branch if your device is supported.
 
+If you are a user in China, it is recommended to use [gitee Repo](https://gitee.com/orbbecdeveloper/OrbbecSDK_ROS1).
+
 Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
 
 <table border="1" style="border-collapse: collapse; text-align: center; width: 100%;">
@@ -20,6 +22,12 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
   </thead>
   <tbody>
     <tr>
+      <td style="text-align: center; font-weight: bold;">Gemini 435Le</td>
+      <td>Gemini 435Le</td>
+      <td>Not supported</td>
+      <td>Recommended for new designs</td>
+    </tr>
+    <tr>
       <td rowspan="8" style="text-align: center; font-weight: bold;">Gemini 330</td>
       <td>Gemini 335</td>
       <td>Full maintenance</td>
@@ -27,11 +35,6 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
     </tr>
     <tr>
       <td>Gemini 336</td>
-      <td>Full maintenance</td>
-      <td>Recommended for new designs</td>
-    </tr>
-    <tr>
-      <td>Gemini 330</td>
       <td>Full maintenance</td>
       <td>Recommended for new designs</td>
     </tr>
@@ -46,11 +49,6 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
       <td>Recommended for new designs</td>
     </tr>
     <tr>
-      <td>Gemini 330L</td>
-      <td>Full maintenance</td>
-      <td>Recommended for new designs</td>
-    </tr>
-    <tr>
       <td>Gemini 335Lg</td>
       <td>Not supported</td>
       <td>Recommended for new designs</td>
@@ -58,6 +56,16 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
     <tr>
       <td>Gemini 335Le</td>
       <td>Not supported</td>
+      <td>Recommended for new designs</td>
+    </tr>
+    <tr>
+      <td>Gemini 330</td>
+      <td>Full maintenance</td>
+      <td>Recommended for new designs</td>
+    </tr>
+    <tr>
+      <td>Gemini 330L</td>
+      <td>Full maintenance</td>
       <td>Recommended for new designs</td>
     </tr>
     <tr>
@@ -107,8 +115,7 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
       <td>Astra Pro Plus</td>
       <td>Limited maintenance</td>
       <td>Not supported</td>
-    </tr>
-    <tr>
+    </tr>    <tr>
       <td style="text-align: center; font-weight: bold;">Astra Mini</td>
       <td>Astra Mini Pro</td>
       <td>Full maintenance</td>
@@ -192,19 +199,20 @@ The following devices are supported by the OrbbecSDK ROS Wrapper.
 
 | Product List | Minimal Firmware Version | **Launch File**    |
 | :----------- | :----------------------- | :----------------------- |
+| Gemini 435Le | 1.2.04                   | gemini435_le.launch      |
+| Gemini 335   | 1.2.20                   | gemini_330_series.launch |
+| Gemini 336   | 1.2.20                   | gemini_330_series.launch |
+| Gemini 335L  | 1.2.20                   | gemini_330_series.launch |
+| Gemini 336L  | 1.2.20                   | gemini_330_series.launch |
+| Gemini 335Lg | 1.3.46                   | gemini_330_series.launch |
+| Gemini 335Le | 1.5.31                   | gemini_330_series.launch |
 | Gemini 330   | 1.2.20                   | gemini_330_series.launch |
 | Gemini 330L  | 1.2.20                   | gemini_330_series.launch |
-| Gemini 335   | 1.2.20                   | gemini_330_series.launch |
-| Gemini 335L  | 1.2.20                   | gemini_330_series.launch |
-| Gemini 335Lg | 1.3.46                   | gemini_330_series.launch |
-| Gemini 336   | 1.2.20                   | gemini_330_series.launch |
-| Gemini 336L  | 1.2.20                   | gemini_330_series.launch |
-| Gemini 335Le | 1.5.31                   | gemini_330_series.launch |
+| Gemini 2     | 1.4.92                   | gemini2.launch           |
+| Gemini 2 L   | 1.4.53                   | gemini2L.launch          |
 | Femto Bolt   | 1.1.2                    | femto_bolt.launch        |
 | Femto Mega   | 1.3.0                    | femto_mega.launch        |
 | Astra 2      | 2.8.20                   | astra2.launch            |
-| Gemini 2 L   | 1.4.53                   | gemini2L.launch          |
-| Gemini 2     | 1.4.92                   | gemini2.launch           |
 
 All launch files are essentially similar, with the primary difference being the default values of the parameters set
 for different models within the same series. Differences in USB standards, such as USB 2.0 versus USB 3.0, may require adjustments to these parameters. If you encounter a startup failure, please carefully review the specification manual. Pay special attention to the resolution settings in the launch file, as well as other parameters, to ensure compatibility and optimal performance.
@@ -456,6 +464,12 @@ roslaunch orbbec_camera femto_mega.launch enumerate_net_device:=true
 
 ```bash
 roslaunch orbbec_camera gemini_330_series.launch enumerate_net_device:=true
+```
+
+**Gemini 435Le:**
+
+```bash
+roslaunch orbbec_camera gemini435_le.launch enumerate_net_device:=true
 ```
 
 For more information about network device enumeration.Reference:[Network device documentation](./examples/net_camera/)

@@ -207,6 +207,9 @@ sensor_msgs::CameraInfo convertToCameraInfo(OBCameraIntrinsic intrinsic,
   info.D[6] = distortion.k5;
   info.D[7] = distortion.k6;
 
+  bool all_zero = std::all_of(info.D.begin(), info.D.end(), [](double val) { return val == 0.0; });
+  info.roi.do_rectify = all_zero;
+
   info.K.fill(0.0);
   info.K[0] = intrinsic.fx;
   info.K[2] = intrinsic.cx;
@@ -619,6 +622,14 @@ OBAccelFullScaleRange fullAccelScaleRangeFromString(std::string &full_scale_rang
     return OB_ACCEL_FS_8g;
   } else if (full_scale_range == "16g") {
     return OB_ACCEL_FS_16g;
+  } else if (full_scale_range == "3g") {
+    return OB_ACCEL_FS_3g;
+  } else if (full_scale_range == "6g") {
+    return OB_ACCEL_FS_6g;
+  } else if (full_scale_range == "12g") {
+    return OB_ACCEL_FS_12g;
+  } else if (full_scale_range == "24g") {
+    return OB_ACCEL_FS_24g;
   } else {
     ROS_ERROR_STREAM("Unknown OB_ACCEL_FULL_SCALE_RANGE: " << full_scale_range);
     return OB_ACCEL_FS_16g;
@@ -635,6 +646,14 @@ std::string fullAccelScaleRangeToString(const OBAccelFullScaleRange &full_scale_
       return "8g";
     case OB_ACCEL_FS_16g:
       return "16g";
+    case OB_ACCEL_FS_3g:
+      return "3g";
+    case OB_ACCEL_FS_6g:
+      return "6g";
+    case OB_ACCEL_FS_12g:
+      return "12g";
+    case OB_ACCEL_FS_24g:
+      return "24g";
     default:
       return "2g";
   }
@@ -794,24 +813,50 @@ std::ostream &operator<<(std::ostream &os, const OBSensorType &rhs) {
   os << OBSensorTypeToString(rhs);
   return os;
 }
-std::string getDistortionModels(OBCameraDistortion distortion){
-    switch (distortion.model)
-    {
+
+OBStreamType obStreamTypeFromString(const std::string &stream_type) {
+  std::string upper_stream_type = stream_type;
+  std::transform(upper_stream_type.begin(), upper_stream_type.end(), upper_stream_type.begin(),
+                 ::toupper);
+  if (upper_stream_type == "VIDEO") {
+    return OB_STREAM_VIDEO;
+  } else if (upper_stream_type == "IR") {
+    return OB_STREAM_IR;
+  } else if (upper_stream_type == "COLOR") {
+    return OB_STREAM_COLOR;
+  } else if (upper_stream_type == "DEPTH") {
+    return OB_STREAM_DEPTH;
+  } else if (upper_stream_type == "ACCEL") {
+    return OB_STREAM_ACCEL;
+  } else if (upper_stream_type == "GYRO") {
+    return OB_STREAM_GYRO;
+  } else if (upper_stream_type == "IR_LEFT") {
+    return OB_STREAM_IR_LEFT;
+  } else if (upper_stream_type == "IR_RIGHT") {
+    return OB_STREAM_IR_RIGHT;
+  } else if (upper_stream_type == "RAW_PHASE") {
+    return OB_STREAM_RAW_PHASE;
+  } else {
+    return OB_STREAM_UNKNOWN;
+  }
+}
+std::string getDistortionModels(OBCameraDistortion distortion) {
+  switch (distortion.model) {
     case OB_DISTORTION_NONE:
-        return sensor_msgs::distortion_models::PLUMB_BOB;
+      return sensor_msgs::distortion_models::PLUMB_BOB;
     case OB_DISTORTION_MODIFIED_BROWN_CONRADY:
-        return sensor_msgs::distortion_models::PLUMB_BOB;
+      return sensor_msgs::distortion_models::PLUMB_BOB;
     case OB_DISTORTION_INVERSE_BROWN_CONRADY:
-        return sensor_msgs::distortion_models::PLUMB_BOB;
+      return sensor_msgs::distortion_models::PLUMB_BOB;
     case OB_DISTORTION_BROWN_CONRADY:
-        return sensor_msgs::distortion_models::PLUMB_BOB;
+      return sensor_msgs::distortion_models::PLUMB_BOB;
     case OB_DISTORTION_BROWN_CONRADY_K6:
-        return sensor_msgs::distortion_models::PLUMB_BOB;
+      return sensor_msgs::distortion_models::PLUMB_BOB;
     case OB_DISTORTION_KANNALA_BRANDT4:
-        return sensor_msgs::distortion_models::EQUIDISTANT;
+      return sensor_msgs::distortion_models::EQUIDISTANT;
     default:
-        return sensor_msgs::distortion_models::PLUMB_BOB;
-    }
+      return sensor_msgs::distortion_models::PLUMB_BOB;
+  }
 }
 
 }  // namespace orbbec_camera

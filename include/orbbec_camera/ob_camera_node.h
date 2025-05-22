@@ -235,6 +235,12 @@ class OBCameraNode {
   bool setMirrorCallback(std_srvs::SetBoolRequest &request, std_srvs::SetBoolResponse &response,
                          const stream_index_pair &stream_index);
 
+  bool setFlipCallback(std_srvs::SetBoolRequest &request, std_srvs::SetBoolResponse &response,
+                       const stream_index_pair &stream_index);
+
+  bool setRotationCallback(SetInt32Request &request, SetInt32Response &response,
+                           const stream_index_pair &stream_index);
+
   bool getExposureCallback(GetInt32Request &request, GetInt32Response &response,
                            const stream_index_pair &stream_index);
 
@@ -320,6 +326,10 @@ class OBCameraNode {
 
   bool setFilterCallback(SetFilterRequest &request, SetFilterResponse &response);
 
+  bool setWriteCustomerData(SetStringRequest &request, SetStringResponse &response);
+
+  bool setReadCustomerData(GetStringRequest &request, GetStringResponse &response);
+
   // Set ROI
   void setColorAutoExposureROI();
   void setDepthAutoExposureROI();
@@ -364,7 +374,8 @@ class OBCameraNode {
   std::map<stream_index_pair, ros::Publisher> imu_info_publishers_;
   std::map<stream_index_pair, ros::Publisher> depth_to_other_extrinsics_publishers_;
   std::map<stream_index_pair, OBExtrinsic> depth_to_other_extrinsics_;
-  std::map<stream_index_pair, bool> flip_images_;
+  std::map<stream_index_pair, bool> image_flip_;
+  std::map<stream_index_pair, bool> image_mirror_;
   std::map<stream_index_pair, bool> stream_started_;
   std::vector<int> compression_params_;
   ob::FormatConvertFilter format_convert_filter_;
@@ -389,6 +400,8 @@ class OBCameraNode {
   std::map<stream_index_pair, ros::ServiceServer> set_gain_srv_;
   std::map<stream_index_pair, ros::ServiceServer> reset_gain_srv_;
   std::map<stream_index_pair, ros::ServiceServer> set_mirror_srv_;
+  std::map<stream_index_pair, ros::ServiceServer> set_flip_srv_;
+  std::map<stream_index_pair, ros::ServiceServer> set_rotation_srv_;
   std::map<stream_index_pair, ros::ServiceServer> toggle_sensor_srv_;
   std::map<stream_index_pair, ros::ServiceServer> set_auto_exposure_srv_;
   std::map<stream_index_pair, ros::ServiceServer> get_auto_exposure_srv_;
@@ -414,6 +427,8 @@ class OBCameraNode {
   ros::ServiceServer switch_ir_data_source_channel_srv_;
   ros::ServiceServer get_lrm_measure_distance_srv_;
   ros::ServiceServer set_filter_srv_;
+  ros::ServiceServer set_write_customerdata_srv_;
+  ros::ServiceServer set_read_customerdata_srv_;
 
   bool publish_tf_ = true;
   std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_ = nullptr;
@@ -454,6 +469,7 @@ class OBCameraNode {
   bool enable_color_auto_exposure_priority_ = false;
   bool enable_color_auto_white_balance_ = true;
   bool enable_color_backlight_compenstation_ = false;
+  std::string color_powerline_freq_;
   bool enable_color_decimation_filter_ = false;
   // color ae roi
   int color_ae_roi_left_ = -1;
@@ -492,7 +508,7 @@ class OBCameraNode {
   bool enable_depth_filter_ = false;
 
   // Only for Gemini2 device
-  bool enable_hardware_d2d_ = true;
+  std::string disaparity_to_depth_mode_ = "HW";
   std::string depth_work_mode_;
   OBMultiDeviceSyncMode sync_mode_ = OB_MULTI_DEVICE_SYNC_MODE_STANDALONE;
   std::string sync_mode_str_;
@@ -501,6 +517,9 @@ class OBCameraNode {
   int trigger2image_delay_us_ = 0;
   int trigger_out_delay_us_ = 0;
   bool trigger_out_enabled_ = false;
+  bool enable_ptp_config_ = false;
+  int frames_per_trigger_ = 2;
+  int software_trigger_period_ = 33;
   std::string depth_precision_str_;
   OB_DEPTH_PRECISION_LEVEL depth_precision_level_ = OB_PRECISION_1MM;
   // IMU
@@ -514,6 +533,8 @@ class OBCameraNode {
   double angular_vel_cov_ = 0.0001;
   std::deque<IMUData> imu_history_;
   IMUData accel_data_{ACCEL, {0, 0, 0}, -1.0};
+  bool enable_accel_data_correction_ = true;
+  bool enable_gyro_data_correction_ = true;
 
   bool enable_sync_output_accel_gyro_ = false;
   std::shared_ptr<ob::Pipeline> imuPipeline_ = nullptr;
@@ -537,6 +558,7 @@ class OBCameraNode {
   bool enable_decimation_filter_ = false;
   bool enable_hdr_merge_ = false;
   bool enable_sequenced_filter_ = false;
+  bool enable_disaparity_to_depth_ = true;
   bool enable_threshold_filter_ = false;
   bool enable_hardware_noise_removal_filter_ = true;
   bool enable_noise_removal_filter_ = true;

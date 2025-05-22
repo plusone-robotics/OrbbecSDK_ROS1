@@ -77,6 +77,20 @@ void OBCameraNode::setupCameraCtrlServices() {
               response.success = this->setMirrorCallback(request, response, stream_index);
               return response.success;
             });
+    service_name = "/" + camera_name_ + "/" + "set_" + stream_name + "_flip";
+    set_flip_srv_[stream_index] =
+        nh_.advertiseService<std_srvs::SetBoolRequest, std_srvs::SetBoolResponse>(
+            service_name, [this, stream_index](std_srvs::SetBoolRequest& request,
+                                               std_srvs::SetBoolResponse& response) {
+              response.success = this->setFlipCallback(request, response, stream_index);
+              return response.success;
+            });
+    service_name = "/" + camera_name_ + "/" + "set_" + stream_name + "_rotation";
+    set_rotation_srv_[stream_index] = nh_.advertiseService<SetInt32Request, SetInt32Response>(
+        service_name, [this, stream_index](SetInt32Request& request, SetInt32Response& response) {
+          response.success = this->setRotationCallback(request, response, stream_index);
+          return response.success;
+        });
     service_name = "/" + camera_name_ + "/" + "set_" + stream_name + "_auto_exposure";
     set_auto_exposure_srv_[stream_index] =
         nh_.advertiseService<std_srvs::SetBoolRequest, std_srvs::SetBoolResponse>(
@@ -227,6 +241,19 @@ void OBCameraNode::setupCameraCtrlServices() {
         response.success = this->getLrmMeasureDistanceCallback(request, response);
         return response.success;
       });
+
+  set_write_customerdata_srv_ = nh_.advertiseService<SetStringRequest, SetStringResponse>(
+      "/" + camera_name_ + "/" + "set_write_customer_data",
+      [this](SetStringRequest& request, SetStringResponse& response) {
+        response.success = this->setWriteCustomerData(request, response);
+        return response.success;
+      });
+  set_read_customerdata_srv_ = nh_.advertiseService<GetStringRequest, GetStringResponse>(
+      "/" + camera_name_ + "/" + "set_read_customer_data",
+      [this](GetStringRequest& request, GetStringResponse& response) {
+        response.success = this->setReadCustomerData(request, response);
+        return response.success;
+      });
 }
 
 bool OBCameraNode::setMirrorCallback(std_srvs::SetBoolRequest& request,
@@ -237,13 +264,113 @@ bool OBCameraNode::setMirrorCallback(std_srvs::SetBoolRequest& request,
     response.success = false;
     return response.success;
   }
-  auto sensor = sensors_[stream_index];
+  auto stream = stream_index.first;
   try {
-    sensor->setMirror(request.data);
+    switch (stream) {
+      case OB_STREAM_IR_RIGHT:
+        device_->setBoolProperty(OB_PROP_IR_RIGHT_MIRROR_BOOL, request.data);
+        break;
+      case OB_STREAM_IR_LEFT:
+      case OB_STREAM_IR:
+        device_->setBoolProperty(OB_PROP_IR_MIRROR_BOOL, request.data);
+        break;
+      case OB_STREAM_DEPTH:
+        device_->setBoolProperty(OB_PROP_DEPTH_MIRROR_BOOL, request.data);
+        break;
+      case OB_STREAM_COLOR:
+        device_->setBoolProperty(OB_PROP_COLOR_MIRROR_BOOL, request.data);
+        break;
+      default:
+        ROS_ERROR_STREAM(" NOT a video stream" << __FUNCTION__);
+        return false;
+        break;
+    }
   } catch (const ob::Error& e) {
     ROS_ERROR_STREAM("Failed to set mirror mode: " << e.getMessage());
     response.success = false;
     return response.success;
+  }
+  return true;
+}
+
+bool OBCameraNode::setFlipCallback(std_srvs::SetBoolRequest& request,
+                                   std_srvs::SetBoolResponse& response,
+                                   const stream_index_pair& stream_index) {
+  if (!enable_stream_[stream_index]) {
+    ROS_ERROR_STREAM("Camera " << stream_name_[stream_index] << " is not enabled.");
+    response.success = false;
+    return response.success;
+  }
+  auto stream = stream_index.first;
+  try {
+    switch (stream) {
+      case OB_STREAM_IR_RIGHT:
+        device_->setBoolProperty(OB_PROP_IR_RIGHT_FLIP_BOOL, request.data);
+        break;
+      case OB_STREAM_IR_LEFT:
+        device_->setBoolProperty(OB_PROP_IR_FLIP_BOOL, request.data);
+        break;
+      case OB_STREAM_IR:
+        device_->setBoolProperty(OB_PROP_IR_FLIP_BOOL, request.data);
+        break;
+      case OB_STREAM_DEPTH:
+        device_->setBoolProperty(OB_PROP_DEPTH_FLIP_BOOL, request.data);
+        break;
+      case OB_STREAM_COLOR:
+        device_->setBoolProperty(OB_PROP_COLOR_FLIP_BOOL, request.data);
+        break;
+      default:
+        ROS_ERROR_STREAM(" NOT a video stream" << __FUNCTION__);
+        return false;
+        break;
+    }
+  } catch (const ob::Error& e) {
+    ROS_ERROR_STREAM("Failed to set flip mode: " << e.getMessage());
+    response.success = false;
+    return response.success;
+  }
+  return true;
+}
+
+bool OBCameraNode::setRotationCallback(SetInt32Request& request, SetInt32Response& response,
+                                       const stream_index_pair& stream_index) {
+  if (!enable_stream_[stream_index]) {
+    ROS_ERROR_STREAM("Camera " << stream_name_[stream_index] << " is not enabled.");
+    response.success = false;
+    return false;
+  }
+  auto stream = stream_index.first;
+  try {
+    switch (stream) {
+      case OB_STREAM_IR_RIGHT:
+        device_->setIntProperty(OB_PROP_IR_RIGHT_ROTATE_INT, request.data);
+        return true;
+        break;
+      case OB_STREAM_IR_LEFT:
+        device_->setIntProperty(OB_PROP_IR_ROTATE_INT, request.data);
+        return true;
+        break;
+      case OB_STREAM_IR:
+        device_->setIntProperty(OB_PROP_IR_ROTATE_INT, request.data);
+        return true;
+        break;
+      case OB_STREAM_DEPTH:
+        device_->setIntProperty(OB_PROP_DEPTH_ROTATE_INT, request.data);
+        return true;
+        break;
+      case OB_STREAM_COLOR:
+        device_->setIntProperty(OB_PROP_COLOR_ROTATE_INT, request.data);
+        return true;
+        break;
+      default:
+        ROS_ERROR_STREAM(" NOT a video stream" << __FUNCTION__);
+        return false;
+        break;
+    }
+  } catch (const ob::Error& e) {
+    ROS_ERROR_STREAM("Failed to set rotation mode: " << e.getMessage());
+    response.success = false;
+    return false;
   }
   return true;
 }
@@ -930,6 +1057,48 @@ bool OBCameraNode::switchIRDataSourceChannelCallback(SetStringRequest& request,
   } catch (const ob::Error& e) {
     std::stringstream ss;
     ss << "Failed to switch IR data source channel: " << e.getMessage();
+    ROS_ERROR_STREAM(ss.str());
+    response.message = ss.str();
+    return false;
+  }
+  return false;
+}
+
+bool OBCameraNode::setWriteCustomerData(SetStringRequest& request, SetStringResponse& response) {
+  if (request.data.empty()) {
+    response.success = false;
+    response.message = "set write customer data is empty";
+    return false;
+  }
+  try {
+    device_->writeCustomerData(request.data.c_str(), request.data.size());
+    response.message = "set write customer data is " + request.data;
+    response.success = true;
+    return true;
+  } catch (const ob::Error& e) {
+    std::stringstream ss;
+    ss << "Failed to set write customer data: " << e.getMessage();
+    ROS_ERROR_STREAM(ss.str());
+    response.message = ss.str();
+    return false;
+  }
+  return false;
+}
+
+bool OBCameraNode::setReadCustomerData(GetStringRequest& request, GetStringResponse& response) {
+  (void)request;
+  try {
+    std::vector<uint8_t> customer_date;
+    customer_date.resize(40960);
+    uint32_t customer_date_len = 0;
+    device_->readCustomerData(customer_date.data(), &customer_date_len);
+    std::string customer_date_str(customer_date.begin(), customer_date.end());
+    response.message = "read customer data is " + customer_date_str;
+    response.success = true;
+    return true;
+  } catch (const ob::Error& e) {
+    std::stringstream ss;
+    ss << "Failed to read customer data: " << e.getMessage();
     ROS_ERROR_STREAM(ss.str());
     response.message = ss.str();
     return false;
